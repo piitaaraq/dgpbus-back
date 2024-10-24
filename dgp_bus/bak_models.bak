@@ -1,0 +1,47 @@
+from django.db import models
+
+class Hospital(models.Model):
+    hospital_name = models.CharField(max_length=255)
+    address = models.TextField()
+    image_path = models.CharField(max_length=255)
+
+    def __str__(self):
+        return self.hospital_name
+
+class Fake_Hospital(models.Model):
+    hospital_name = models.CharField(max_length=255)
+    address = models.TextField()
+    image_path = models.CharField(max_length=255)
+
+    def __str__(self):
+        return self.hospital_name
+
+class Schedule(models.Model):
+    destination = models.ForeignKey(Hospital, on_delete=models.CASCADE)
+    day_of_week = models.CharField(max_length=20)
+    departure_time = models.TimeField()
+    departure_location = models.CharField(max_length=255)
+
+    def __str__(self):
+        return f'{self.departure_location} to {self.destination.hospital_name} on {self.day_of_week}'
+
+class User(models.Model):
+    name = models.CharField(max_length=255)
+    room = models.CharField(max_length=100)
+    appointment_time = models.TimeField()
+    appointment_date = models.DateField()
+    bus_time = models.TimeField(null=True, blank=True) 
+
+    hospital = models.ForeignKey(Hospital, on_delete=models.CASCADE)
+
+    def __str__(self):
+        return f'{self.name} - Room {self.room}'
+
+
+class Ride(models.Model):
+    schedule = models.ForeignKey(Schedule, on_delete=models.CASCADE)
+    user_name = models.CharField(max_length=255)
+    is_checked_in = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f'Ride for {self.user_name} on {self.schedule}'

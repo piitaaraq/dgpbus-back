@@ -1,0 +1,81 @@
+from rest_framework import serializers
+from .models import Hospital, Schedule, User, Ride
+from datetime import datetime, timedelta
+import locale
+
+class HospitalSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Hospital
+        fields = '__all__'
+
+class ScheduleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Schedule
+        fields = '__all__'
+
+
+
+
+class UserSerializer(serializers.ModelSerializer):
+    bus_time = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = '__all__'
+
+    def get_bus_time(self, obj):
+        # Calculate the most suitable bus time
+        return self.calculate_bus_time(obj)
+
+    def calculate_bus_time(self, user):
+        # Set locale to Danish
+        locale.setlocale(locale.LC_TIME, 'da_DK.UTF-8')
+        # Check if 'user' is a dict (validated_data) or a model instance
+        if isinstance(user, dict):
+            appointment_date = user['appointment_date']
+            appointment_time = user['appointment_time']
+            hospital = user['hospital']
+        else:
+            appointment_date = user.appointment_date
+            appointment_time = user.appointment_time
+            hospital = user.hospital
+
+        # Get the day of the week from the appointment date
+        day_of_week = appointment_date.strftime('%A')
+
+        print(f"Calculating bus time for {day_of_week}, {hospital}, {appointment_time}")
+
+
+        # Filter schedules by hospital and day of the week
+        schedules = Schedule.objects.filter(destination=hospital, day_of_week=day_of_week)
+        print(f"Found schedules: {schedules}")
+
+        suitable_schedule = None
+
+        for schedule in schedules:
+            # Estimate travel time, let's assume 30 minutes as travel time (can be dynamic)
+            travel_time = timedelta(minutes=30)
+            latest_departure = (datetime.combine(appointment_date, appointment_time) - travel_time).time()
+   
+            print(f"Checking schedule {schedule.departure_time} against latest departure {latest_departure}")
+
+            if schedule.departure_time <= latest_departure:
+                if suitable_schedule is None or schedule.departure_time > suitable_schedule.departure_time:
+                    suitable_schedule = schedule
+        print(f"Selected schedule: {suitable_schedule}")
+
+        return suitable_schedule.departure_time if suitable_schedule else None
+
+    def create(self, validated_data):
+        validated_data['bus_time'] = self.calculate_bus_time(validated_data)
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        validated_data['bus_time'] = self.calculate_bus_time(instance)
+        return super().update(instance, validated_data)
+
+
+class RideSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Ride
+        fields = '__all__'
