@@ -5,15 +5,9 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.parsers import JSONParser
 from .models import Hospital, Schedule, Ride, Patient, StaffAdminUser, Accommodation 
-from .serializers import HospitalSerializer, ScheduleSerializer, PatientSerializer, RideSerializer, StaffAdminUserSerializer, RegisterUserSerializer, RidePublicSerializer, ApproveUserSerializer, AccommodationSerializer
+from .serializers import HospitalSerializer, ScheduleSerializer, PatientSerializer, PatientPublicSerializer, RideSerializer, StaffAdminUserSerializer, RegisterUserSerializer, RidePublicSerializer, ApproveUserSerializer, AccommodationSerializer
 from datetime import date, timedelta
 from .permissions import IsStaffOrAdmin, IsAdmin
-from django.contrib.auth import authenticate, login
-from django.db.models import Q
-from django.shortcuts import redirect, render
-from django.http import HttpResponse
-from rest_framework_simplejwt.views import TokenObtainPairView
-from .serializers import CustomTokenObtainPairSerializer
 
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
@@ -87,7 +81,37 @@ class PatientViewSet(viewsets.ModelViewSet):
         serializer = PatientSerializer(patients_needing_translators, many=True)
         return Response(serializer.data)
 
-   
+    # New action to fetch patients with appointments today or later
+    @action(detail=False, methods=['get'], url_path='alle-aftaler')
+    @permission_classes([IsAuthenticated, IsStaffOrAdmin])
+    def future_appointments(self, request):
+        today = date.today()
+        # Fetch patients with appointments today or in the future
+        patients = Patient.objects.filter(appointment_date__gte=today)
+        
+        # Log the number of patients found
+        print(f"Found {patients.count()} patients with appointments today or later.")
+
+        # Serialize the data
+        serializer = PatientSerializer(patients, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    # Public access version of taxi users view
+    @action(detail=False, methods=['get'], url_path='public-taxi-users')
+    @permission_classes([AllowAny])  # Allow public access
+    def public_taxi_users_view(self, request):
+        today = date.today()
+        tomorrow = today + timedelta(days=1)
+        
+        # Same query logic as `taxi_users_view`
+        patients_needing_taxis = Patient.objects.filter(
+            bus_time__isnull=True,
+            appointment_date__range=[today, tomorrow],
+        )
+
+        # Use the PublicPatientSerializer to limit exposed fields
+        serializer = PatientPublicSerializer(patients_needing_taxis, many=True)
+        return Response(serializer.data)   
 
     # Staff-only access for taxi users view - old version, that assumes the logic for bustime is fully in the backend
     @action(detail=False, methods=['get'], url_path='taxi-users')
@@ -118,6 +142,32 @@ class PatientViewSet(viewsets.ModelViewSet):
             return Response({'has_taxi': patient.has_taxi}, status=status.HTTP_200_OK)
         except Patient.DoesNotExist:
             return Response({'error': 'Patient not found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+    # Custom action to find a patient by name, room, and accommodation with future appointments
+    @action(detail=False, methods=['get'], url_path='find-patient')
+    def find_patient(self, request):
+        name = request.query_params.get('name')
+        room = request.query_params.get('room')
+        accommodation = request.query_params.get('accommodation')
+        today = date.today()
+
+        if not (name and room and accommodation):
+            return Response({'error': 'Name, room, and accommodation are required parameters.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        patients = Patient.objects.filter(
+            name=name,
+            room=room,
+            accommodation__name=accommodation,
+            appointment_date__gte=today  # Filter for today or later
+        )
+
+        if patients.exists():
+            serializer = PatientSerializer(patients, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        else:
+            return Response({'message': 'No matching patient found with a future appointment.'}, status=status.HTTP_404_NOT_FOUND)
+
 
     # Publicly accessible method for calculating bus times for patients
     @action(detail=False, methods=['post'])
@@ -180,8 +230,10 @@ class RideViewSet(viewsets.ModelViewSet):
     @permission_classes([AllowAny])  # Public access allowed
     def today_no_desc(self, request):
         today = date.today()
+        print(f"Today is: {today}")
         rides = Ride.objects.filter(date=today).order_by('departure_time')
         serialized_rides = RidePublicSerializer(rides, many=True)  # Use the serializer without description
+        print(serialized_rides.data)
         return Response(serialized_rides.data)
 
     @action(detail=False, methods=['get'])

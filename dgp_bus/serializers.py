@@ -5,6 +5,8 @@ from datetime import datetime, timedelta
 import locale
 from requests import Response
 import bleach
+from rest_framework.exceptions import AuthenticationFailed
+from django.contrib.auth import authenticate
 
 class HospitalSerializer(serializers.ModelSerializer):
     class Meta:
@@ -102,41 +104,79 @@ class PatientSerializer(serializers.ModelSerializer):
         return bleach.clean(description, tags=[], attributes={}, strip=True)
 
     def calculate_bus_time(self, patient):
-           # Set locale to Danish
-           locale.setlocale(locale.LC_TIME, 'da_DK.UTF-8')
-           accommodation = patient.get('accommodation')
-           print(f'the accommodation is', accommodation)
-           hospital = patient.get('hospital')
-          
-           # Add logging to verify the values being processed
-           print(f"Accommodation: {accommodation}, Hospital ID: {hospital.id}")
+        # Set locale to Danish
+        locale.setlocale(locale.LC_TIME, 'da_DK.UTF-8')
+        
+        accommodation = patient.get('accommodation')
+        hospital = patient.get('hospital')
+        
+        print(f"Accommodation: {accommodation.name}, Hospital ID: {hospital.id}")
+        
+        # Only calculate bus_time for hospitals with IDs 1, 3, and 7
+        if hospital.id in [1, 3, 7] and accommodation.name == 'Det grønlandske Patienthjem':
+            appointment_date = patient.get('appointment_date')
+            appointment_time = patient.get('appointment_time')
+            
+            # Get the day of the week
+            day_of_week = appointment_date.strftime('%A')
     
-           # Only calculate bus_time for hospitals with ID 1 and accommodation DgP
-           if (hospital.id in [1]) and (accommodation.name == 'Det grønlandske Patienthjem'):
-               appointment_date = patient.get('appointment_date')
-               appointment_time = patient.get('appointment_time')
+            # Use the schedule for hospital 1 for hospitals 3 and 7
+            schedule_hospital_id = 1 if hospital.id in [3, 7] else hospital.id
     
-               # Get the day of the week
-               day_of_week = appointment_date.strftime('%A')
-    
-               # Filter schedules by destination (hospital) and day of the week
-               schedules = Schedule.objects.filter(destination=hospital, day_of_week=day_of_week)
-    
-               suitable_schedule = None
-               for schedule in schedules:
-                   travel_time = timedelta(minutes=30)
-                   latest_departure = (datetime.combine(appointment_date, appointment_time) - travel_time).time()
-    
-                   # Find the latest schedule before the latest_departure time
-                   if schedule.departure_time <= latest_departure:
-                       if suitable_schedule is None or schedule.departure_time > suitable_schedule.departure_time:
-                           suitable_schedule = schedule
-    
-               # Return the departure_time of the suitable schedule
-               return suitable_schedule.departure_time if suitable_schedule else None
-           else:
-               # For hospitals other than 1 and 8, no bus_time calculation is required
-               return None
+            # Fetch schedules using the adjusted hospital ID
+            schedules = Schedule.objects.filter(destination_id=schedule_hospital_id, day_of_week=day_of_week)
+            
+            suitable_schedule = None
+            for schedule in schedules:
+                travel_time = timedelta(minutes=30)
+                latest_departure = (datetime.combine(appointment_date, appointment_time) - travel_time).time()
+                
+                # Find the latest schedule before the latest_departure time
+                if schedule.departure_time <= latest_departure:
+                    if suitable_schedule is None or schedule.departure_time > suitable_schedule.departure_time:
+                        suitable_schedule = schedule
+            
+            # Return the departure_time of the suitable schedule
+            return suitable_schedule.departure_time if suitable_schedule else None
+        else:
+            return None
+
+#    def calculate_bus_time(self, patient):
+#           # Set locale to Danish
+#           locale.setlocale(locale.LC_TIME, 'da_DK.UTF-8')
+#           accommodation = patient.get('accommodation')
+#           print(f'the accommodation is', accommodation)
+#           hospital = patient.get('hospital')
+#          
+#           # Add logging to verify the values being processed
+#           print(f"Accommodation: {accommodation}, Hospital ID: {hospital.id}")
+#    
+#           # Only calculate bus_time for hospitals with ID 1, 3, 7 and accommodation DgP
+#           if (hospital.id in [1, 3, 7]) and (accommodation.name == 'Det grønlandske Patienthjem'):
+#               appointment_date = patient.get('appointment_date')
+#               appointment_time = patient.get('appointment_time')
+#    
+#               # Get the day of the week
+#               day_of_week = appointment_date.strftime('%A')
+#    
+#               # Filter schedules by destination (hospital) and day of the week
+#               schedules = Schedule.objects.filter(destination=hospital, day_of_week=day_of_week)
+#    
+#               suitable_schedule = None
+#               for schedule in schedules:
+#                   travel_time = timedelta(minutes=30)
+#                   latest_departure = (datetime.combine(appointment_date, appointment_time) - travel_time).time()
+#    
+#                   # Find the latest schedule before the latest_departure time
+#                   if schedule.departure_time <= latest_departure:
+#                       if suitable_schedule is None or schedule.departure_time > suitable_schedule.departure_time:
+#                           suitable_schedule = schedule
+#    
+#               # Return the departure_time of the suitable schedule
+#               return suitable_schedule.departure_time if suitable_schedule else None
+#           else:
+#               # For hospitals other than 1 and 8, no bus_time calculation is required
+#               return None
 
     def create(self, validated_data):
         if 'description' in validated_data:
