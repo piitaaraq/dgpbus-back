@@ -1,12 +1,9 @@
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from .models import Hospital, Schedule, Patient, Ride, StaffAdminUser, Accommodation
+from .models import Hospital, Schedule, Patient, Ride, StaffAdminUser, Accommodation, RidePatient
 from datetime import datetime, timedelta
 import locale
-from requests import Response
 import bleach
-from rest_framework.exceptions import AuthenticationFailed
-from django.contrib.auth import authenticate
 
 class HospitalSerializer(serializers.ModelSerializer):
     class Meta:
@@ -141,43 +138,6 @@ class PatientSerializer(serializers.ModelSerializer):
         else:
             return None
 
-#    def calculate_bus_time(self, patient):
-#           # Set locale to Danish
-#           locale.setlocale(locale.LC_TIME, 'da_DK.UTF-8')
-#           accommodation = patient.get('accommodation')
-#           print(f'the accommodation is', accommodation)
-#           hospital = patient.get('hospital')
-#          
-#           # Add logging to verify the values being processed
-#           print(f"Accommodation: {accommodation}, Hospital ID: {hospital.id}")
-#    
-#           # Only calculate bus_time for hospitals with ID 1, 3, 7 and accommodation DgP
-#           if (hospital.id in [1, 3, 7]) and (accommodation.name == 'Det grønlandske Patienthjem'):
-#               appointment_date = patient.get('appointment_date')
-#               appointment_time = patient.get('appointment_time')
-#    
-#               # Get the day of the week
-#               day_of_week = appointment_date.strftime('%A')
-#    
-#               # Filter schedules by destination (hospital) and day of the week
-#               schedules = Schedule.objects.filter(destination=hospital, day_of_week=day_of_week)
-#    
-#               suitable_schedule = None
-#               for schedule in schedules:
-#                   travel_time = timedelta(minutes=30)
-#                   latest_departure = (datetime.combine(appointment_date, appointment_time) - travel_time).time()
-#    
-#                   # Find the latest schedule before the latest_departure time
-#                   if schedule.departure_time <= latest_departure:
-#                       if suitable_schedule is None or schedule.departure_time > suitable_schedule.departure_time:
-#                           suitable_schedule = schedule
-#    
-#               # Return the departure_time of the suitable schedule
-#               return suitable_schedule.departure_time if suitable_schedule else None
-#           else:
-#               # For hospitals other than 1 and 8, no bus_time calculation is required
-#               return None
-
     def create(self, validated_data):
         if 'description' in validated_data:
             validated_data['description'] = self.sanitize_description(validated_data['description'])
@@ -205,15 +165,20 @@ class PatientSerializer(serializers.ModelSerializer):
     def assign_patient_to_ride(self, patient):
         if not patient.bus_time:
             return
-
+    
+        # Find or create a Ride based on the patient's appointment details
         ride, created = Ride.objects.get_or_create(
             date=patient.appointment_date,
             departure_time=patient.bus_time,
             destination=patient.hospital,
             defaults={'departure_location': 'Default Location'}
         )
-        ride.users.add(patient)
-
+    
+        # Check if the patient is already assigned to this ride
+        if not RidePatient.objects.filter(ride=ride, patient=patient).exists():
+            # Use the RidePatient model to assign the patient to the ride
+            RidePatient.objects.create(ride=ride, patient=patient)
+    
 
 class PatientPublicSerializer(serializers.ModelSerializer):
     hospital_name = serializers.CharField(source='hospital.hospital_name', read_only=True)
@@ -226,11 +191,24 @@ class PatientPublicSerializer(serializers.ModelSerializer):
 
 class RideSerializer(serializers.ModelSerializer):
     hospital_name = serializers.CharField(source='destination.hospital_name', read_only=True)
-    patients = PatientSerializer(many=True, source='users')  
+    patients = serializers.SerializerMethodField()
 
     class Meta:
         model = Ride
-        fields = '__all__'
+        fields = ['id', 'date', 'departure_time', 'departure_location', 'hospital_name', 'patients']
+
+    def get_patients(self, obj):
+        # Fetch related patients using the RidePatient model
+        ride_patients = RidePatient.objects.filter(ride=obj)
+        return RidePatientSerializer(ride_patients, many=True).data
+
+class RidePatientSerializer(serializers.ModelSerializer):
+    patient_name = serializers.CharField(source='patient.name', read_only=True)
+    patient_room = serializers.CharField(source='patient.room', read_only=True)
+
+    class Meta:
+        model = RidePatient
+        fields = ['patient_name', 'patient_room', 'checked_in']
 
 # for fetching data without cpr. nr.
 class RidePublicSerializer(serializers.ModelSerializer):

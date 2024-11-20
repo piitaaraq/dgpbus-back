@@ -108,15 +108,19 @@ class Patient(models.Model):
     def __str__(self):
         return f'{self.name} - Room {self.room} - {self.hospital.hospital_name}'
 
-
 class Ride(models.Model):
     date = models.DateField(default=timezone.now)
     departure_time = models.TimeField()
-    arrival_time = models.TimeField(null=True, blank=True)
     departure_location = models.CharField(max_length=255)
-    destination = models.ForeignKey('Hospital', on_delete=models.CASCADE)
-    users = models.ManyToManyField('Patient', related_name='rides')
+    destination = models.ForeignKey(Hospital, on_delete=models.CASCADE)
+    patients = models.ManyToManyField(Patient, through='RidePatient', related_name='rides')
     status = models.BooleanField(default=False)
+    max_capacity = models.PositiveIntegerField(default=10)  # New field to limit the number of patients
 
     def __str__(self):
-        return f"Ride to {self.destination} on {self.date} at {self.departure_time}"
+        return f"Ride to {self.destination.hospital_name} on {self.date} at {self.departure_time}"
+
+class RidePatient(models.Model):
+    ride = models.ForeignKey(Ride, on_delete=models.CASCADE)
+    patient = models.ForeignKey(Patient, on_delete=models.CASCADE)
+    checked_in = models.BooleanField(default=False)  # Tracks if the patient checked in for this ride

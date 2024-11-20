@@ -4,7 +4,7 @@ from rest_framework.decorators import permission_classes, action
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.parsers import JSONParser
-from .models import Hospital, Schedule, Ride, Patient, StaffAdminUser, Accommodation 
+from .models import Hospital, Schedule, Ride, Patient, StaffAdminUser, Accommodation, RidePatient
 from .serializers import HospitalSerializer, ScheduleSerializer, PatientSerializer, PatientPublicSerializer, RideSerializer, StaffAdminUserSerializer, RegisterUserSerializer, RidePublicSerializer, ApproveUserSerializer, AccommodationSerializer
 from datetime import date, timedelta
 from .permissions import IsStaffOrAdmin, IsAdmin
@@ -217,38 +217,93 @@ class RideViewSet(viewsets.ModelViewSet):
     queryset = Ride.objects.all()
     serializer_class = RideSerializer  # Default serializer with all fields
 
+    # Fetch today's rides with all fields
     @action(detail=False, methods=['get'])
-    @permission_classes([IsAuthenticated, IsStaffOrAdmin])  # Public access allowed
+    @permission_classes([AllowAny])
     def today(self, request):
         today = date.today()
-        rides = Ride.objects.filter(date=today).order_by('departure_time', 'hospital_name')
-        serialized_rides = self.get_serializer(rides, many=True)
-        return Response(serialized_rides.data)
+        rides_today = Ride.objects.filter(date=today).order_by('departure_time')
 
-    # New action to fetch today's rides without the description field
+        # Fetch patients associated with each ride
+        rides_with_patients = []
+        for ride in rides_today:
+            ride_patients = RidePatient.objects.filter(ride=ride)
+            patients_data = [
+                {
+                    'id': rp.patient.id,
+                    'name': rp.patient.name,
+                    'room': rp.patient.room,
+                    'checked_in': rp.checked_in
+                } for rp in ride_patients
+            ]
+            rides_with_patients.append({
+                'id': ride.id,
+                'departure_time': ride.departure_time,
+                'destination': ride.destination.hospital_name,
+                'patients': patients_data
+            })
+
+        return Response(rides_with_patients)
+    
+    # Fetch today's rides without the description field
     @action(detail=False, methods=['get'])
-    @permission_classes([AllowAny])  # Public access allowed
+    @permission_classes([AllowAny])
     def today_no_desc(self, request):
         today = date.today()
-        print(f"Today is: {today}")
         rides = Ride.objects.filter(date=today).order_by('departure_time')
-        serialized_rides = RidePublicSerializer(rides, many=True)  # Use the serializer without description
-        print(serialized_rides.data)
+        serialized_rides = RidePublicSerializer(rides, many=True)
         return Response(serialized_rides.data)
 
+    # Fetch rides for drivers to view
     @action(detail=False, methods=['get'])
-    @permission_classes([IsAuthenticated, IsStaffOrAdmin])  # Ensure drivers are authenticated
+    @permission_classes([IsAuthenticated, IsStaffOrAdmin])
     def driver_view(self, request):
         today = date.today()
         rides_today = Ride.objects.filter(date=today)
         serializer = RideSerializer(rides_today, many=True)
         return Response(serializer.data)
 
-    @action(detail=True, methods=['patch'])
-    @permission_classes([IsAuthenticated])
-    def toggle_status(self, request, pk=None):
+    # Assign a patient to a ride
+    @action(detail=True, methods=['post'], url_path='assign-patient')
+    @permission_classes([IsAuthenticated, IsStaffOrAdmin])
+    def assign_patient(self, request, pk=None):
         ride = self.get_object()
-        ride.status = not ride.status
-        ride.save()
-        return Response({'status': ride.status})
+        patient_id = request.data.get('patient_id')
+
+        if not patient_id:
+            return Response({'error': 'Patient ID is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            patient = Patient.objects.get(id=patient_id)
+
+            if RidePatient.objects.filter(ride=ride, patient=patient).exists():
+                return Response({'error': 'Patient already assigned to this ride.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            if ride.patients.count() >= ride.max_capacity:
+                return Response({'error': 'Ride is at full capacity.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            RidePatient.objects.create(ride=ride, patient=patient)
+            return Response({'message': 'Patient assigned to ride successfully.'}, status=status.HTTP_201_CREATED)
+
+        except Patient.DoesNotExist:
+            return Response({'error': 'Patient not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    # Toggle patient check-in status for a ride
+    @action(detail=True, methods=['patch'], url_path='toggle-check-in')
+    @permission_classes([IsAuthenticated, IsStaffOrAdmin])
+    def toggle_check_in(self, request, pk=None):
+        patient_id = request.data.get('patient_id')
+
+        if not patient_id:
+            return Response({'error': 'Patient ID is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        ride = self.get_object()
+        try:
+            ride_patient = RidePatient.objects.get(ride=ride, patient_id=patient_id)
+            ride_patient.checked_in = not ride_patient.checked_in
+            ride_patient.save()
+            return Response({'checked_in': ride_patient.checked_in}, status=status.HTTP_200_OK)
+
+        except RidePatient.DoesNotExist:
+            return Response({'error': 'Patient not found on this ride.'}, status=status.HTTP_404_NOT_FOUND)
 
