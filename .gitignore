@@ -1,7 +1,6 @@
 dgp_bus/__pycache__/
 dgp_bus/migrations/__pycache__/
 dgp_bus_project/__pycache__/
-dgp_bus_project/settings.py
 venv/
 .env
 
