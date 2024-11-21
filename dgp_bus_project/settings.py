@@ -6,6 +6,15 @@ import os
 # BASE_DIR is the directory that holds the project
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Debugging: Test if .env is loaded correctly
+try:
+    print("Loading .env file...")
+    print("SECRET_KEY from .env:", config('DJANGO_SECRET_KEY'))
+except Exception as e:
+    print("Error loading .env file:", str(e))
+    raise
+
+
 # Environment-specific settings
 if config('DJANGO_ENV', default='development') == 'production':
     CSRF_COOKIE_SECURE = True
@@ -22,6 +31,7 @@ DEBUG = config('DJANGO_DEBUG', default=False, cast=bool)
 
 # Allowed hosts
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='*', cast=Csv())
+print("ALLOWED_HOSTS:", ALLOWED_HOSTS)
 
 # Installed apps for the project
 INSTALLED_APPS = [

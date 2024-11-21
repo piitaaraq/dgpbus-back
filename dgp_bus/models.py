@@ -71,6 +71,7 @@ class Fake_Hospital(models.Model):
     hospital_name = models.CharField(max_length=255)
     address = models.TextField()
     image_path = models.CharField(max_length=255)
+    notes = models.TextField(null=True, blank=True)
 
     def __str__(self):
         return self.hospital_name
