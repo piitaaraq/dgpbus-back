@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from .models import Hospital, Schedule, Patient, Ride, StaffAdminUser, Accommodation, RidePatient
+from .models import Hospital, Schedule, Patient, Ride, StaffAdminUser, Accommodation, RidePatient, SiteUser
 from datetime import datetime, timedelta
 import locale
 import bleach
@@ -77,6 +77,27 @@ class ApproveUserSerializer(serializers.ModelSerializer):
         instance.is_active = validated_data.get('is_active', instance.is_active)
         instance.save()
         return instance
+
+class SiteUserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SiteUser
+        fields = ['email', 'password']
+        extra_kwargs = {
+            'password': {'write_only': True},
+        }
+
+    def create(self, validated_data):
+        user = SiteUser.objects.create_user(
+            email=validated_data['email'],
+            password=validated_data['password']
+        )
+        # Set is_active to False for admin approval
+        user.is_active = False
+        user.save()
+        return user
+
+
+
 
 class PatientSerializer(serializers.ModelSerializer):
     needs_translator = serializers.BooleanField(write_only=True)

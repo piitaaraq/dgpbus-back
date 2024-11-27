@@ -1,18 +1,12 @@
 from rest_framework.permissions import BasePermission
+from dgp_bus.models import SiteUser
 
-class IsAdmin(BasePermission):
+
+class IsSiteUser(BasePermission):
+    """
+    Custom permission to allow access only to SiteUser accounts.
+    """
+
     def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.role == 'admin'
-
-class IsStaff(BasePermission):
-    def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.role == 'staff'
-
-class IsPatient(BasePermission):
-    def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.role == 'patient'
-
-class IsStaffOrAdmin(BasePermission):
-    def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.role in ['staff', 'admin']
-
+        # Ensure the user is authenticated and is a SiteUser
+        return request.user.is_authenticated and isinstance(request.user, SiteUser)

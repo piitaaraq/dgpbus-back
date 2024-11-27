@@ -5,9 +5,9 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.parsers import JSONParser
 from .models import Hospital, Schedule, Ride, Patient, StaffAdminUser, Accommodation, RidePatient
-from .serializers import HospitalSerializer, ScheduleSerializer, PatientSerializer, PatientPublicSerializer, RideSerializer, StaffAdminUserSerializer, RegisterUserSerializer, RidePublicSerializer, ApproveUserSerializer, AccommodationSerializer
+from .serializers import HospitalSerializer, ScheduleSerializer, PatientSerializer, PatientPublicSerializer, RideSerializer, StaffAdminUserSerializer, RegisterUserSerializer, RidePublicSerializer, ApproveUserSerializer, AccommodationSerializer, SiteUserSerializer
 from datetime import date, timedelta
-from .permissions import IsStaffOrAdmin, IsAdmin
+from .permissions import SiteUser
 
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
@@ -24,44 +24,27 @@ class AccommodationViewSet(viewsets.ModelViewSet):
     permission_classes = [AllowAny]  # You can change this based on your needs
 
 
-class AdminApproveUserView(APIView):
-    permission_classes = [IsAuthenticated, IsAdmin]  # Ensure only authenticated admin users can access
+class SiteUserRegisterView(APIView):
+    """
+    Endpoint to register site users (staff who manage patients).
+    """
+    permission_classes = [AllowAny]  # Open to all for user registration
 
-    def get(self, request):
-        # List all staff/admin members that are inactive (pending approval)
-        pending_staff = StaffAdminUser.objects.filter(is_active=False)
-        serializer = StaffAdminUserSerializer(pending_staff, many=True)  # Use StaffAdminUserSerializer for listing
-        return Response(serializer.data)
-    
-    def post(self, request, staff_id):
-        # Admin approves the staff member by setting is_active to True
-        try:
-            staff_member = StaffAdminUser.objects.get(id=staff_id, is_active=False)
+    def post(self, request, *args, **kwargs):
+        from .serializers import SiteUserSerializer  # Import SiteUser serializer
 
-            # Use the ApproveUserSerializer to update the is_active field
-            serializer = ApproveUserSerializer(staff_member, data={"is_active": True}, partial=True)
-            if serializer.is_valid():
-                serializer.save()
-                return Response(serializer.data, status=status.HTTP_200_OK)  # Return the updated user info
-
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-        except StaffAdminUser.DoesNotExist:
-            return Response({"error": "Staff member not found or already active."}, status=status.HTTP_404_NOT_FOUND)
-
-
-class RegisterUserView(APIView):
-    def post(self, request):
-        serializer = RegisterUserSerializer(data=request.data)
+        serializer = SiteUserSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
-            return Response({'message': 'User registered successfully. Await admin approval.'}, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            # Save the user but set is_active to False for admin approval
+            user = serializer.save()
+            user.is_active = False
+            user.save()
 
-class IsAdmin(BasePermission):
-    def has_permission(self, request, view):
-        # Only allow access if the user is an admin
-        return request.user.is_authenticated and request.user.is_admin
+            return Response(
+                {'message': 'User registered successfully. Await admin approval.'},
+                status=status.HTTP_201_CREATED
+            )
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class PatientViewSet(viewsets.ModelViewSet):
     queryset = Patient.objects.all()
@@ -70,7 +53,7 @@ class PatientViewSet(viewsets.ModelViewSet):
 
     # Staff-only access for translator view
     @action(detail=False, methods=['get'], url_path='translator-view')  # Add custom URL path
-    @permission_classes([IsAuthenticated, IsStaffOrAdmin])
+    @permission_classes([IsAuthenticated, SiteUser])
     def restricted_translator_view(self, request):
         today = date.today()
         end_date = today + timedelta(days=5)
@@ -83,7 +66,7 @@ class PatientViewSet(viewsets.ModelViewSet):
 
     # New action to fetch patients with appointments today or later
     @action(detail=False, methods=['get'], url_path='alle-aftaler')
-    @permission_classes([IsAuthenticated, IsStaffOrAdmin])
+    @permission_classes([IsAuthenticated, SiteUser])
     def future_appointments(self, request):
         today = date.today()
         # Fetch patients with appointments today or in the future
@@ -115,7 +98,7 @@ class PatientViewSet(viewsets.ModelViewSet):
 
     # Staff-only access for taxi users view - old version, that assumes the logic for bustime is fully in the backend
     @action(detail=False, methods=['get'], url_path='taxi-users')
-    @permission_classes([IsAuthenticated, IsStaffOrAdmin])
+    @permission_classes([IsAuthenticated, SiteUser])
     def taxi_users_view(self, request):
         today = date.today()
         tomorrow = today + timedelta(days=1)
@@ -256,7 +239,7 @@ class RideViewSet(viewsets.ModelViewSet):
 
     # Fetch rides for drivers to view
     @action(detail=False, methods=['get'])
-    @permission_classes([IsAuthenticated, IsStaffOrAdmin])
+    @permission_classes([IsAuthenticated, SiteUser])
     def driver_view(self, request):
         today = date.today()
         rides_today = Ride.objects.filter(date=today)
@@ -265,7 +248,7 @@ class RideViewSet(viewsets.ModelViewSet):
 
     # Assign a patient to a ride
     @action(detail=True, methods=['post'], url_path='assign-patient')
-    @permission_classes([IsAuthenticated, IsStaffOrAdmin])
+    @permission_classes([IsAuthenticated, SiteUser])
     def assign_patient(self, request, pk=None):
         ride = self.get_object()
         patient_id = request.data.get('patient_id')
@@ -290,7 +273,7 @@ class RideViewSet(viewsets.ModelViewSet):
 
     # Toggle patient check-in status for a ride
     @action(detail=True, methods=['patch'], url_path='toggle-check-in')
-    @permission_classes([IsAuthenticated, IsStaffOrAdmin])
+    @permission_classes([IsAuthenticated, SiteUser])
     def toggle_check_in(self, request, pk=None):
         patient_id = request.data.get('patient_id')
 

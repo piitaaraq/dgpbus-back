@@ -5,9 +5,8 @@ from .views import (
     AccommodationViewSet,
     ScheduleViewSet, 
     RideViewSet,  
-    AdminApproveUserView,  
     PatientViewSet,
-    RegisterUserView,
+    SiteUserRegisterView,
     public_test_view,
 )
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
@@ -22,6 +21,7 @@ router.register(r'schedules', ScheduleViewSet)
 router.register(r'rides', RideViewSet, basename='ride')  
 router.register(r'patients', PatientViewSet, basename='patient')
 
+
 # URL patterns
 urlpatterns = [
     path('api/test-public/', public_test_view),
@@ -33,11 +33,9 @@ urlpatterns = [
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),  
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),  
 
-    # User registration endpoint
-    path('api/register/', RegisterUserView.as_view(), name='register_user'),
+    # User registration endpoints
+    path('api/siteusers/register/', SiteUserRegisterView.as_view(), name='siteuser_register'),  # New endpoint
 
-    # Admin approval endpoint
-    path('api/approve-users/', AdminApproveUserView.as_view(), name='approve_user'),  
-    path('api/approve-users/<int:staff_id>/', AdminApproveUserView.as_view(), name='approve_user_post'),
 
 ]
+

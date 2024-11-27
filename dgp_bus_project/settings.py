@@ -71,6 +71,13 @@ CELERY_BEAT_SCHEDULE = {
     },
 }
 
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',  # Default for admin/staff
+    'dgp_bus.backends.SiteUserBackend',  # Custom backend for site users
+]
+
+AUTH_USER_MODEL = 'dgp_bus.StaffAdminUser'
+
 # Cross-origin resource sharing (CORS) settings
 CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', cast=Csv())
 
