@@ -183,6 +183,8 @@ class PatientSerializer(serializers.ModelSerializer):
         self.assign_patient_to_ride(patient)
         return patient
 
+
+    #old version, kept as backup
     def assign_patient_to_ride(self, patient):
         if not patient.bus_time:
             return

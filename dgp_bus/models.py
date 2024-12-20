@@ -130,6 +130,10 @@ class Patient(models.Model):
     has_taxi = models.BooleanField(default=False)
     accommodation = models.ForeignKey(Accommodation, on_delete=models.SET_NULL, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    # three new fields for patient
+    wheelchair = models.BooleanField(default=False)
+    trolley = models.BooleanField(default=False)
+    companion = models.BooleanField(default=False)
 
     def __str__(self):
         return f'{self.name} - Room {self.room} - {self.hospital.hospital_name}'

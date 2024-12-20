@@ -101,7 +101,7 @@ class PatientViewSet(viewsets.ModelViewSet):
     @permission_classes([IsAuthenticated, SiteUser])
     def taxi_users_view(self, request):
         today = date.today()
-        tomorrow = today + timedelta(days=1)
+        tomorrow = today + timedelta(days=120)
         patients_needing_taxis = Patient.objects.filter(
             bus_time__isnull=True,  # we expect that patients without a bus_time need a taxi 
             appointment_date__range=[today, tomorrow],
@@ -113,6 +113,7 @@ class PatientViewSet(viewsets.ModelViewSet):
 
         serializer = PatientSerializer(patients_needing_taxis, many=True)
         return Response(serializer.data)
+
 
     # New action to toggle taxi status
     @action(detail=True, methods=['patch'], url_path='toggle-taxi')
@@ -245,11 +246,32 @@ class RideViewSet(viewsets.ModelViewSet):
         rides_today = Ride.objects.filter(date=today)
         serializer = RideSerializer(rides_today, many=True)
         return Response(serializer.data)
+    
+    # Fetch passengers for a specific ride
+    @action(detail=True, methods=['get'], url_path='patients')
+    @permission_classes([IsAuthenticated, SiteUser])
+    def get_ride_patients(self, request, pk=None):
+        try:
+            ride = self.get_object()  # Get the specific ride by ID
+            ride_patients = RidePatient.objects.filter(ride=ride)  # Fetch patients for the ride
+            patients_data = [
+                {
+                    'id': rp.patient.id,
+                    'name': rp.patient.name,
+                    'room': rp.patient.room,
+                    'checked_in': rp.checked_in
+                }
+                for rp in ride_patients
+            ]
+            return Response({'ride_id': ride.id, 'patients': patients_data})
+        except Ride.DoesNotExist:
+            return Response({'error': 'Ride not found.'}, status=404)
+
 
     # Assign a patient to a ride
     @action(detail=True, methods=['post'], url_path='assign-patient')
     @permission_classes([IsAuthenticated, SiteUser])
-    def assign_patient(self, request, pk=None):
+    def assign_patient_old(self, request, pk=None):
         ride = self.get_object()
         patient_id = request.data.get('patient_id')
 
@@ -275,8 +297,9 @@ class RideViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['patch'], url_path='toggle-check-in')
     @permission_classes([IsAuthenticated, SiteUser])
     def toggle_check_in(self, request, pk=None):
-        patient_id = request.data.get('patient_id')
+        print("Request data received:", request.data)  # Debugging log for incoming data
 
+        patient_id = request.data.get('patient_id')
         if not patient_id:
             return Response({'error': 'Patient ID is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
