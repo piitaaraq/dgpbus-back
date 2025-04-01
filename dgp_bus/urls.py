@@ -3,8 +3,8 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     HospitalViewSet,
     AccommodationViewSet,
-    ScheduleViewSet, 
-    RideViewSet,  
+    ScheduleViewSet,
+    get_today_rides, 
     PatientViewSet,
     SiteUserRegisterView,
     public_test_view,
@@ -18,9 +18,7 @@ router = DefaultRouter()
 router.register(r'hospitals', HospitalViewSet)
 router.register(r'accommodations', AccommodationViewSet)
 router.register(r'schedules', ScheduleViewSet)
-router.register(r'rides', RideViewSet, basename='ride')  
-router.register(r'patients', PatientViewSet, basename='patient')
-
+router.register(r'patients', PatientViewSet)  #
 
 # URL patterns
 urlpatterns = [
@@ -28,6 +26,8 @@ urlpatterns = [
 
     # Include all the viewset routes registered with the router under the 'api/' prefix
     path('api/', include(router.urls)),
+    path('api/patients/rides/today/', get_today_rides, name='get_today_rides'),
+
 
     # JWT Token authentication endpoints
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),  

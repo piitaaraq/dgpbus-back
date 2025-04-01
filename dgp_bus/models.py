@@ -117,49 +117,29 @@ class Accommodation(models.Model):
         return self.name
 
 
-# Patient model
+
+# Patient model (Now Includes Ride Data)
 class Patient(models.Model):
     name = models.CharField(max_length=255)
     room = models.CharField(max_length=100)
     appointment_time = models.TimeField()
     appointment_date = models.DateField()
-    bus_time = models.TimeField(null=True, blank=True)  # Optional field
+    bus_time = models.TimeField(null=True, blank=True)  # Used instead of Ride.departure_time
+    departure_location = models.CharField(max_length=255, blank=True, null=True)  # New field from Ride
+    status = models.BooleanField(default=False)  # Replacing Ride status
+    phone_no = models.CharField(max_length=15, blank=True, null=True)
     translator = models.BooleanField(default=False)
     hospital = models.ForeignKey(Hospital, on_delete=models.CASCADE)
     department = models.CharField(max_length=255, null=True, blank=True)
     description = models.CharField(max_length=255, blank=True)
-    phone_no = models.CharField(max_length=15, blank=True, null=True)
     has_taxi = models.BooleanField(default=False)
     accommodation = models.ForeignKey(Accommodation, on_delete=models.SET_NULL, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    # three new fields for patient
+    
+    # New ride-related fields
     wheelchair = models.BooleanField(default=False)
     trolley = models.BooleanField(default=False)
     companion = models.BooleanField(default=False)
 
     def __str__(self):
         return f'{self.name} - Room {self.room} - {self.hospital.hospital_name}'
-
-
-# Ride model
-class Ride(models.Model):
-    date = models.DateField(default=timezone.now)
-    departure_time = models.TimeField()
-    departure_location = models.CharField(max_length=255)
-    destination = models.ForeignKey(Hospital, on_delete=models.CASCADE)
-    patients = models.ManyToManyField(Patient, through='RidePatient', related_name='rides')
-    status = models.BooleanField(default=False)
-    max_capacity = models.PositiveIntegerField(default=10)  # New field to limit the number of patients
-
-    def __str__(self):
-        return f"Ride to {self.destination.hospital_name} on {self.date} at {self.departure_time}"
-
-
-# Through table for Ride and Patient models
-class RidePatient(models.Model):
-    ride = models.ForeignKey(Ride, on_delete=models.CASCADE)
-    patient = models.ForeignKey(Patient, on_delete=models.CASCADE)
-    checked_in = models.BooleanField(default=False)  # Tracks if the patient checked in for this ride
-
-    def __str__(self):
-        return f'{self.patient.name} in Ride {self.ride}'

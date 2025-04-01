@@ -1,4 +1,4 @@
-#!/home/peter/projects/dgp_bus/venv/bin/python
+#!/home/peter/projects/dgpbus-back/venv/bin/python
 # -*- coding: utf-8 -*-
 import re
 import sys

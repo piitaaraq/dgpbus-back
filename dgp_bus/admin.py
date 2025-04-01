@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from .models import Hospital, Schedule, Accommodation, Patient, StaffAdminUser, SiteUser
+from datetime import datetime, timedelta
 
 # Managing site users
 @admin.register(SiteUser)
@@ -29,24 +30,79 @@ class AccommodationAdmin(admin.ModelAdmin):
     ordering = ('name',)
 
 
-# Customizing the Patient admin
 class PatientAdmin(admin.ModelAdmin):
-    list_display = ('name', 'room', 'hospital', 'appointment_date', 'appointment_time', 'bus_time', 'translator', 'has_taxi', 'accommodation', 'phone_no')
-    list_filter = ('hospital', 'appointment_date', 'translator', 'has_taxi', 'accommodation')  # Filtering options
-    search_fields = ('name', 'room', 'phone_no', 'description', 'department')  # Searchable fields
-    ordering = ('appointment_date', 'appointment_time')  # Default ordering by appointment date and time
-    readonly_fields = ('created_at',)  # Make created_at read-only
+    list_display = (
+        'name', 'room', 'hospital', 'appointment_date', 'appointment_time',
+        'bus_time', 'translator', 'has_taxi', 'accommodation', 'phone_no'
+    )
+    list_filter = (
+        'hospital', 'appointment_date', 'translator', 'has_taxi', 'accommodation'
+    )
+    search_fields = ('name', 'room', 'phone_no', 'description', 'department')
+    ordering = ('appointment_date', 'appointment_time')
+    readonly_fields = ('created_at',)
+    
     fieldsets = (
         ('Basic Information', {
-            'fields': ('name', 'room', 'phone_no', 'hospital', 'department', 'accommodation')
+            'fields': (
+                'name', 'room', 'phone_no', 'hospital', 'department',
+                'accommodation', 'wheelchair', 'trolley', 'companion'
+            )
         }),
         ('Appointment Details', {
-            'fields': ('appointment_date', 'appointment_time', 'bus_time', 'translator', 'has_taxi', 'description')
+            'fields': (
+                'appointment_date', 'appointment_time', 'bus_time',
+                'translator', 'has_taxi', 'description'
+            )
         }),
         ('Metadata', {
             'fields': ('created_at',)
         }),
     )
+
+    actions = ['recalculate_bus_time']
+
+    def recalculate_bus_time(self, request, queryset):
+        updated = 0
+        for patient in queryset:
+            new_time = self.calculate_bus_time(patient)
+            if new_time:
+                patient.bus_time = new_time
+                patient.save()
+                updated += 1
+        self.message_user(request, f"✅ Recalculated bus time for {updated} patient(s).")
+    
+    recalculate_bus_time.short_description = "Recalculate bus time for selected patients"
+
+    def calculate_bus_time(self, patient):
+        # Bus time logic copied from serializer
+        if (
+            patient.hospital.id in [1, 3, 7] and 
+            patient.accommodation and 
+            patient.accommodation.name == 'Det grønlandske Patienthjem'
+        ):
+            day_of_week = patient.appointment_date.strftime('%A')
+            schedule_hospital_id = 1 if patient.hospital.id in [3, 7] else patient.hospital.id
+
+            schedules = Schedule.objects.filter(
+                destination_id=schedule_hospital_id,
+                day_of_week=day_of_week
+            )
+
+            suitable_schedule = None
+            for schedule in schedules:
+                latest_departure = (
+                    datetime.combine(patient.appointment_date, patient.appointment_time)
+                    - timedelta(minutes=30)
+                ).time()
+
+                if schedule.departure_time <= latest_departure:
+                    if not suitable_schedule or schedule.departure_time > suitable_schedule.departure_time:
+                        suitable_schedule = schedule
+
+            return suitable_schedule.departure_time if suitable_schedule else None
+        return None
+
 
 class StaffAdminUserAdmin(UserAdmin):
     # Fields to display in the list view
@@ -86,5 +142,5 @@ class StaffAdminUserAdmin(UserAdmin):
 admin.site.register(Hospital, HospitalAdmin)
 admin.site.register(Schedule, ScheduleAdmin)
 admin.site.register(Accommodation, AccommodationAdmin)
-admin.site.register(Patient, PatientAdmin)
 admin.site.register(StaffAdminUser, StaffAdminUserAdmin)
+admin.site.register(Patient, PatientAdmin)

@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from .models import Hospital, Schedule, Patient, Ride, StaffAdminUser, Accommodation, RidePatient, SiteUser
+from .models import Hospital, Schedule, Patient, StaffAdminUser, Accommodation, SiteUser
 from datetime import datetime, timedelta
 import locale
 import bleach
@@ -170,7 +170,6 @@ class PatientSerializer(serializers.ModelSerializer):
         patient.translator = needs_translator
         patient.save()
 
-        self.assign_patient_to_ride(patient)
         return patient
 
     def update(self, instance, validated_data):
@@ -180,27 +179,9 @@ class PatientSerializer(serializers.ModelSerializer):
         validated_data['bus_time'] = self.calculate_bus_time(validated_data)
         patient = super().update(instance, validated_data)
 
-        self.assign_patient_to_ride(patient)
         return patient
 
 
-    #old version, kept as backup
-    def assign_patient_to_ride(self, patient):
-        if not patient.bus_time:
-            return
-    
-        # Find or create a Ride based on the patient's appointment details
-        ride, created = Ride.objects.get_or_create(
-            date=patient.appointment_date,
-            departure_time=patient.bus_time,
-            destination=patient.hospital,
-            defaults={'departure_location': 'Default Location'}
-        )
-    
-        # Check if the patient is already assigned to this ride
-        if not RidePatient.objects.filter(ride=ride, patient=patient).exists():
-            # Use the RidePatient model to assign the patient to the ride
-            RidePatient.objects.create(ride=ride, patient=patient)
     
 
 class PatientPublicSerializer(serializers.ModelSerializer):
@@ -212,34 +193,6 @@ class PatientPublicSerializer(serializers.ModelSerializer):
         extra_fields = ['hospital_name']
 
 
-class RideSerializer(serializers.ModelSerializer):
-    hospital_name = serializers.CharField(source='destination.hospital_name', read_only=True)
-    patients = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Ride
-        fields = ['id', 'date', 'departure_time', 'departure_location', 'hospital_name', 'patients']
-
-    def get_patients(self, obj):
-        # Fetch related patients using the RidePatient model
-        ride_patients = RidePatient.objects.filter(ride=obj)
-        return RidePatientSerializer(ride_patients, many=True).data
-
-class RidePatientSerializer(serializers.ModelSerializer):
-    patient_name = serializers.CharField(source='patient.name', read_only=True)
-    patient_room = serializers.CharField(source='patient.room', read_only=True)
-
-    class Meta:
-        model = RidePatient
-        fields = ['patient_name', 'patient_room', 'checked_in']
-
-# for fetching data without cpr. nr.
-class RidePublicSerializer(serializers.ModelSerializer):
-    patients = PatientPublicSerializer(many=True, source='users')  # Use the public version of PatientSerializer
-
-    class Meta:
-        model = Ride
-        fields = '__all__'  # Include all fields except the excluded ones in PatientPublicSerializer
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
