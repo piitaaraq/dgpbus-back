@@ -8,7 +8,7 @@ from .models import Hospital, Schedule, Patient, StaffAdminUser, Accommodation
 from .serializers import HospitalSerializer, ScheduleSerializer, PatientSerializer, PatientPublicSerializer,  StaffAdminUserSerializer, RegisterUserSerializer,  ApproveUserSerializer, AccommodationSerializer, SiteUserSerializer
 from datetime import date, timedelta
 from .permissions import SiteUser
-
+from collections import defaultdict
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -187,6 +187,31 @@ class PatientViewSet(viewsets.ModelViewSet):
         self.perform_create(serializer)
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+    
+    # View for use on Freemarker TV system
+    @action(detail=False, methods=['get'], url_path='freemarker-rides')
+    @permission_classes([AllowAny])  # Allow public access
+    def freemarker_rides(self, request):
+        today = date.today()
+        patients = Patient.objects.filter(
+            appointment_date=today,
+            bus_time__isnull=False
+        ).order_by('bus_time')
+
+        # Group patients by bus_time
+        grouped = defaultdict(list)
+        for patient in patients:
+            grouped[patient.bus_time.strftime('%H:%M')].append({
+                "name": patient.name,
+                "room": patient.room,
+            })
+
+        # Return the groups as a list of objects
+        result = [
+            {"departure_time": time, "patients": patient_list}
+            for time, patient_list in grouped.items()
+        ]
+        return Response({"groups": result})
 
 
 
