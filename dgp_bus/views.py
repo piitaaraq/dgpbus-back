@@ -199,19 +199,23 @@ class PatientViewSet(viewsets.ModelViewSet):
         ).order_by('bus_time')
 
         # Group patients by bus_time
-        grouped = defaultdict(list)
+        grouped = {}
         for patient in patients:
-            grouped[patient.bus_time.strftime('%H:%M')].append({
+            key = patient.bus_time.strftime('%H:%M')
+            grouped.setdefault(key, []).append({
                 "name": patient.name,
-                "room": patient.room,
+                "room": patient.room
             })
-
-        # Return the groups as a list of objects
+        # Convert grouped dict to list of objects
         result = [
-            {"departure_time": time, "patients": patient_list}
-            for time, patient_list in grouped.items()
+            {
+                "departure_time": time_str,
+                "patients": patients_list
+            }
+            for time_str, patients_list in grouped.items()
         ]
-        return Response(grouped)
+
+        return Response(result)
 
 
 
