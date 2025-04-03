@@ -211,7 +211,7 @@ class PatientViewSet(viewsets.ModelViewSet):
             {"departure_time": time, "patients": patient_list}
             for time, patient_list in grouped.items()
         ]
-        return Response({"groups": result})
+        return Response(grouped)
 
 
 
