@@ -63,6 +63,17 @@ class PatientViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(patients, many=True)
         return Response(serializer.data)
+    
+    # Staff-only access for toggling patient status
+    @action(detail=True, methods=['patch'], url_path='toggle-status')
+    def toggle_status(self, request, pk=None):
+        try:
+            patient = self.get_object()
+            patient.status = not patient.status
+            patient.save()
+            return Response({'id': patient.id, 'status': patient.status}, status=status.HTTP_200_OK)
+        except Patient.DoesNotExist:
+            return Response({'error': 'Patient not found'}, status=status.HTTP_404_NOT_FOUND)
 
     # Staff-only access for translator view
     @action(detail=False, methods=['get'], url_path='translator-view')  # Add custom URL path
