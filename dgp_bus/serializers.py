@@ -105,6 +105,7 @@ class PatientSerializer(serializers.ModelSerializer):
     description = serializers.CharField(required=False, allow_blank=True, max_length=255)
     hospital_name = serializers.CharField(source='hospital.hospital_name', read_only=True)
     has_taxi = serializers.BooleanField(default=False)
+    day_of_birth = serializers.DateField(required=False, allow_null=True)
 
     # Use the AccommodationSerializer to serialize the accommodation foreign key
     accommodation = AccommodationSerializer(read_only=True)
@@ -189,7 +190,7 @@ class PatientPublicSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Patient
-        exclude = ['description']  # Exclude the description field
+        exclude = ['description', 'day_of_birth']  # Exclude the description field
         extra_fields = ['hospital_name']
 
 
