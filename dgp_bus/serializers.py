@@ -190,7 +190,7 @@ class PatientPublicSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Patient
-        exclude = ['description', 'day_of_birth']  # Exclude the description field
+        exclude = ['description', 'day_of_birth', 'last_name',]   
         extra_fields = ['hospital_name']
 
 

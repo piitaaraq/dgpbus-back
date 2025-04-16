@@ -121,6 +121,7 @@ class Accommodation(models.Model):
 # Patient model (Now Includes Ride Data)
 class Patient(models.Model):
     name = models.CharField(max_length=255)
+    last_name = models.CharField(max_length=255)
     day_of_birth = models.DateField()
     room = models.CharField(max_length=100)
     appointment_time = models.TimeField()
