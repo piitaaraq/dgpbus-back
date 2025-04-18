@@ -33,7 +33,7 @@ class AccommodationAdmin(admin.ModelAdmin):
 class PatientAdmin(admin.ModelAdmin):
     list_display = (
         'name', 'room', 'hospital', 'appointment_date', 'appointment_time',
-        'bus_time', 'translator', 'has_taxi', 'accommodation', 'phone_no'
+        'bus_time', 'translator', 'has_taxi', 'accommodation', 'phone_no', 'created_at'
     )
     list_filter = (
         'hospital', 'appointment_date', 'translator', 'has_taxi', 'accommodation'
