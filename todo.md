@@ -1,7 +1,10 @@
-# features to implement
+# Droplet IP
 
-## new taxi view
+165.232.123.236
 
-- view that shows today's taxi rides, without desc field
+## features to implement
 
-## new root
+- push the changes to droplet
+- copy changes to .env
+- migrate
+- create systemd services on droplet

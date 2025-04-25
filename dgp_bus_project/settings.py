@@ -42,7 +42,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django_extensions',
-    'dgp_bus',
+    # 'dgp_bus',
+    'dgp_bus.apps.DgpBusConfig',
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',
@@ -149,6 +150,21 @@ AUTH_PASSWORD_VALIDATORS = [
         'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
 ]
+
+# Email settings
+from decouple import config
+
+EMAIL_BACKEND = config("EMAIL_BACKEND", default="django.core.mail.backends.smtp.EmailBackend")
+EMAIL_HOST = config("EMAIL_HOST", default="smtp.mailgun.org")
+EMAIL_PORT = config("EMAIL_PORT", default=587, cast=int)
+EMAIL_USE_TLS = config("EMAIL_USE_TLS", default=True, cast=bool)
+EMAIL_HOST_USER = config("EMAIL_HOST_USER")
+EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD")
+DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="noreply@example.com")
+
+# Base URL for internal API access (used in Celery tasks)
+BASE_URL = config('BASE_URL', default='http://localhost:8000')
+
 
 # Internationalization and timezone settings
 LANGUAGE_CODE = 'da-dk'

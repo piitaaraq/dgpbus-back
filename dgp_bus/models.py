@@ -71,6 +71,7 @@ class SiteUserManager(BaseUserManager):
 
 class SiteUser(AbstractBaseUser):
     email = models.EmailField(max_length=150, unique=True)
+    is_frontdesk = models.BooleanField(default=False)
     is_active = models.BooleanField(default=False)  # Default to False
     date_joined = models.DateTimeField(auto_now_add=True)
     last_login = models.DateTimeField(auto_now=True)

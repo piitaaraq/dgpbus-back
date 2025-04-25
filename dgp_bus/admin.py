@@ -6,8 +6,8 @@ from datetime import datetime, timedelta
 # Managing site users
 @admin.register(SiteUser)
 class SiteUserAdmin(admin.ModelAdmin):
-    list_display = ('email', 'is_active', 'date_joined')
-    list_filter = ('is_active', 'date_joined')
+    list_display = ('email', 'is_active', 'is_frontdesk', 'date_joined')
+    list_filter = ('is_active', 'is_frontdesk', 'date_joined')
     search_fields = ('email',)
 
 # Customizing the Hospital admin
