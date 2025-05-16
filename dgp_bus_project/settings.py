@@ -62,16 +62,31 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-# Celery setup - clear information after 30 days
+# Celery setup 
 CELERY_BROKER_URL = 'redis://localhost:6379/0'
+CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
-CELERY_BEAT_SCHEDULE = {
-    'clear-expired-values-every-30-days': {
-        'task': 'dgp_bus.tasks.clear_expired_column_values',
-        'schedule': 2592000,
+# Set a default queue in case a task isn’t explicitly routed
+CELERY_TASK_DEFAULT_QUEUE = 'dgp_bus_taxi'
+
+CELERY_TASK_QUEUES = {
+    'dgp_bus_taxi': {
+        'exchange': 'dgp_bus_taxi',
+        'routing_key': 'dgp_bus_taxi',
+    },
+    'dgp_bus_cleanup': {
+        'exchange': 'dgp_bus_cleanup',
+        'routing_key': 'dgp_bus_cleanup',
     },
 }
+
+CELERY_TASK_ROUTES = {
+    'dgp_bus.taxi_email.send_taxi_user_report': {'queue': 'dgp_bus_taxi'},
+    'dgp_bus.mailgun_tasks.send_smtp_email': {'queue': 'dgp_bus_taxi'},  # Emails are tied to taxi report
+    'dgp_bus.tasks.delete_expired_entries': {'queue': 'dgp_bus_cleanup'},
+}
+
 
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',  # Default for admin/staff
