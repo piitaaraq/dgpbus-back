@@ -92,7 +92,7 @@ def send_password_reset_email(user):
     send_mail(
         subject=subject,
         message=message.strip(),
-        from_email=settings.DEFAULT_FROM_EMAIL,
+        from_email="noreply@bus.patienthjem.dk",
         recipient_list=[user.email],
     )
 
