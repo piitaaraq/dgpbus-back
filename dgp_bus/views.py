@@ -1,17 +1,17 @@
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, generics
 from rest_framework.permissions import IsAuthenticated, AllowAny, BasePermission
 from rest_framework.decorators import permission_classes, action
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.parsers import JSONParser
-from .models import Hospital, Schedule, Patient, StaffAdminUser, Accommodation
-from .serializers import HospitalSerializer, ScheduleSerializer, PatientSerializer, PatientPublicSerializer,  StaffAdminUserSerializer, RegisterUserSerializer,  ApproveUserSerializer, AccommodationSerializer, SiteUserSerializer
+from .models import Hospital, Schedule, Patient, StaffAdminUser, Accommodation, SiteUser
+from .serializers import HospitalSerializer, ScheduleSerializer, PatientSerializer, PatientPublicSerializer,  StaffAdminUserSerializer, RegisterUserSerializer,  ApproveUserSerializer, AccommodationSerializer, SiteUserSerializer, SiteUserPasswordResetRequestSerializer, SiteUserPasswordResetConfirmSerializer
 from datetime import date, timedelta
 from .permissions import SiteUser
 from collections import defaultdict
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
-from rest_framework.response import Response
+from .utils import verify_signed_reset_data, site_user_password_reset_token, send_password_reset_email
+
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -274,3 +274,49 @@ def get_today_rides(request):
         })
 
     return Response({"rides": rides})
+
+# Password reset request view
+class SiteUserPasswordResetRequestView(generics.GenericAPIView):
+    permission_classes = [AllowAny]
+    serializer_class = SiteUserPasswordResetRequestSerializer
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data['email']
+        user = SiteUser.objects.get(email=email)
+        send_password_reset_email(user)
+        return Response({"detail": "Password reset email sent."}, status=status.HTTP_200_OK)
+
+# Password reset confirm view
+class SiteUserPasswordResetConfirmView(generics.GenericAPIView):
+    permission_classes = [AllowAny]
+    serializer_class = SiteUserPasswordResetConfirmSerializer
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({"detail": "Password has been reset successfully."}, status=status.HTTP_200_OK)
+
+# Password reset validation view
+class SiteUserPasswordResetValidateView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        from .utils import verify_signed_reset_data
+        signed_data = request.data.get("signed")
+        email, token = verify_signed_reset_data(signed_data)
+
+        if not email or not token:
+            return Response({"valid": False, "reason": "Ugyldig eller udløbet signatur."}, status=400)
+
+        try:
+            user = SiteUser.objects.get(email=email)
+        except SiteUser.DoesNotExist:
+            return Response({"valid": False, "reason": "Bruger ikke fundet."}, status=400)
+
+        if not site_user_password_reset_token.check_token(user, token):
+            return Response({"valid": False, "reason": "Token udløbet."}, status=400)
+
+        return Response({"valid": True})

@@ -4,6 +4,7 @@ from .models import Hospital, Schedule, Patient, StaffAdminUser, Accommodation, 
 from datetime import datetime, timedelta
 import locale
 import bleach
+from .utils import site_user_password_reset_token
 
 class HospitalSerializer(serializers.ModelSerializer):
     class Meta:
@@ -97,6 +98,43 @@ class SiteUserSerializer(serializers.ModelSerializer):
         return user
 
 
+
+class SiteUserPasswordResetRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+    def validate_email(self, value):
+        if not SiteUser.objects.filter(email=value).exists():
+            raise serializers.ValidationError("No user found with this email.")
+        return value
+
+
+class SiteUserPasswordResetConfirmSerializer(serializers.Serializer):
+    signed = serializers.CharField()
+    new_password = serializers.CharField(write_only=True, min_length=8)
+
+    def validate(self, data):
+        from .utils import verify_signed_reset_data
+
+        signed_data = data.get("signed")
+        email, token = verify_signed_reset_data(signed_data)
+        if not email or not token:
+            raise serializers.ValidationError("Invalid or expired reset link.")
+
+        try:
+            user = SiteUser.objects.get(email=email)
+        except SiteUser.DoesNotExist:
+            raise serializers.ValidationError("Invalid email.")
+
+        if not site_user_password_reset_token.check_token(user, token):
+            raise serializers.ValidationError("Invalid or expired token.")
+
+        data['user'] = user
+        return data
+
+    def save(self):
+        user = self.validated_data['user']
+        user.set_password(self.validated_data['new_password'])
+        user.save()
 
 
 class PatientSerializer(serializers.ModelSerializer):

@@ -7,6 +7,9 @@ from .views import (
     get_today_rides, 
     PatientViewSet,
     SiteUserRegisterView,
+    SiteUserPasswordResetRequestView,  
+    SiteUserPasswordResetConfirmView,  
+    SiteUserPasswordResetValidateView,
     public_test_view,
 )
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
@@ -35,6 +38,11 @@ urlpatterns = [
 
     # User registration endpoints
     path('api/siteusers/register/', SiteUserRegisterView.as_view(), name='siteuser_register'),  # New endpoint
+
+    # Password reset endpoints
+    path('api/siteusers/password-reset-request/', SiteUserPasswordResetRequestView.as_view(), name='siteuser_password_reset_request'),
+    path('api/siteusers/password-reset-confirm/', SiteUserPasswordResetConfirmView.as_view(), name='siteuser_password_reset_confirm'),
+    path('api/siteusers/password-reset-validate/', SiteUserPasswordResetValidateView.as_view(), name='siteuser_password_reset_validate'),
 
 
 ]
