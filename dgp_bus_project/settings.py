@@ -93,8 +93,11 @@ AUTHENTICATION_BACKENDS = [
     'dgp_bus.backends.SiteUserBackend',  # Custom backend for site users
 ]
 
-# Token expiration: 3 hours
-PASSWORD_RESET_TIMEOUT = 60 * 60 * 3
+INVITE_TOKEN_EXPIRY = 24 * 60 * 60  
+FRONTEND_INVITE_URL = "https://bus.patienthjem.dk/register-invite"
+
+# Token expiration: 24 hours
+PASSWORD_RESET_TIMEOUT = 60 * 60 * 24  # 24 hours 
 
 # Frontend reset URL where the user will land to set new password
 FRONTEND_RESET_URL = 'https://bus.patienthjem.dk/reset-password'

@@ -100,3 +100,44 @@ def send_password_reset_email(user):
 # For testing imports in Django shell (optional)
 def test_import():
     print("UTILS IMPORT WORKS")
+
+# Generate signed invite data
+def generate_signed_invite_data(email):
+    data = {'email': email}
+    signed_data = signing.dumps(data)
+    return signed_data
+
+# Verify signed invite data
+def verify_signed_invite_data(signed_data):
+    try:
+        data = signing.loads(signed_data)
+        return data['email']
+    except signing.BadSignature:
+        return None
+
+# Send invite email using Mailgun via Django's EmailBackend
+def send_invite_email(email):
+    signed_data = generate_signed_invite_data(email)
+    invite_link = f"{settings.FRONTEND_INVITE_URL}?signed={signed_data}"
+    subject = "Invitation til at oprette konto på bus.patienthjem.dk"
+    message = f"""
+    Hej,
+
+    Du er inviteret til at oprette en konto på bus.patienthjem.dk.
+
+    Klik på linket nedenunder, eller kopier adressen til din browser, for at oprette din adgangskode:
+
+    {invite_link}
+
+    For din egen sikkerhed udløber dette link efter {settings.INVITE_TOKEN_EXPIRY // 3600} timer.
+
+    Venlig hilsen,
+    bus.patienthjem.dk teamet
+    """
+
+    send_mail(
+        subject=subject,
+        message=message.strip(),
+        from_email="noreply@bus.patienthjem.dk",
+        recipient_list=[email],
+    )

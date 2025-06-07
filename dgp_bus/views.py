@@ -5,12 +5,12 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.parsers import JSONParser
 from .models import Hospital, Schedule, Patient, StaffAdminUser, Accommodation, SiteUser
-from .serializers import HospitalSerializer, ScheduleSerializer, PatientSerializer, PatientPublicSerializer,  StaffAdminUserSerializer, RegisterUserSerializer,  ApproveUserSerializer, AccommodationSerializer, SiteUserSerializer, SiteUserPasswordResetRequestSerializer, SiteUserPasswordResetConfirmSerializer
+from .serializers import HospitalSerializer, ScheduleSerializer, PatientSerializer, PatientPublicSerializer,  StaffAdminUserSerializer, RegisterUserSerializer,  ApproveUserSerializer, AccommodationSerializer, SiteUserSerializer, SiteUserPasswordResetRequestSerializer, SiteUserPasswordResetConfirmSerializer, SiteUserInviteSerializer, SiteUserInviteConfirmSerializer
 from datetime import date, timedelta
 from .permissions import SiteUser
 from collections import defaultdict
 from rest_framework.decorators import api_view, permission_classes
-from .utils import verify_signed_reset_data, site_user_password_reset_token, send_password_reset_email
+from .utils import verify_signed_reset_data, site_user_password_reset_token, send_password_reset_email, timezone
 
 
 @api_view(['GET'])
@@ -320,3 +320,23 @@ class SiteUserPasswordResetValidateView(APIView):
             return Response({"valid": False, "reason": "Token udløbet."}, status=400)
 
         return Response({"valid": True})
+
+class SiteUserInviteView(generics.GenericAPIView):
+    serializer_class = SiteUserInviteSerializer
+    permission_classes = [IsAuthenticated]  # Only admins should call this endpoint
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({"detail": "Invitation sent."})
+
+class SiteUserInviteConfirmView(generics.GenericAPIView):
+    permission_classes = [AllowAny]
+    serializer_class = SiteUserInviteConfirmSerializer
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({"detail": "Registration complete."})

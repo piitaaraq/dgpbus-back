@@ -97,7 +97,46 @@ class SiteUserSerializer(serializers.ModelSerializer):
         user.save()
         return user
 
+class SiteUserInviteSerializer(serializers.Serializer):
+    email = serializers.EmailField()
 
+    def validate_email(self, value):
+        # Check if user already exists
+        if SiteUser.objects.filter(email=value).exists():
+            raise serializers.ValidationError("Brugeren findes allerede.")
+        return value
+
+    def create(self, validated_data):
+        from .utils import send_invite_email
+        send_invite_email(validated_data['email'])
+        return validated_data
+
+class SiteUserInviteConfirmSerializer(serializers.Serializer):
+    signed = serializers.CharField()
+    password = serializers.CharField(write_only=True, min_length=8)
+
+    def validate(self, data):
+        from .utils import verify_signed_invite_data
+
+        signed_data = data.get("signed")
+        email = verify_signed_invite_data(signed_data)
+        if not email:
+            raise serializers.ValidationError("Ugyldigt eller udløbet link.")
+
+        # Ensure user does not already exist (paranoia check)
+        if SiteUser.objects.filter(email=email).exists():
+            raise serializers.ValidationError("Denne bruger findes allerede.")
+
+        data['email'] = email
+        return data
+
+    def create(self, validated_data):
+        email = validated_data['email']
+        password = validated_data['password']
+        user = SiteUser.objects.create_user(email=email, password=password)
+        user.is_active = True
+        user.save()
+        return user
 
 class SiteUserPasswordResetRequestSerializer(serializers.Serializer):
     email = serializers.EmailField()

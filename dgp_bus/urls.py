@@ -10,6 +10,8 @@ from .views import (
     SiteUserPasswordResetRequestView,  
     SiteUserPasswordResetConfirmView,  
     SiteUserPasswordResetValidateView,
+    SiteUserInviteView,
+    SiteUserInviteConfirmView,
     public_test_view,
 )
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
@@ -43,6 +45,11 @@ urlpatterns = [
     path('api/siteusers/password-reset-request/', SiteUserPasswordResetRequestView.as_view(), name='siteuser_password_reset_request'),
     path('api/siteusers/password-reset-confirm/', SiteUserPasswordResetConfirmView.as_view(), name='siteuser_password_reset_confirm'),
     path('api/siteusers/password-reset-validate/', SiteUserPasswordResetValidateView.as_view(), name='siteuser_password_reset_validate'),
+
+    # User invite endpoints
+    path('siteuser/invite/', SiteUserInviteView.as_view(), name='siteuser-invite'),
+    path('siteuser/invite/confirm/', SiteUserInviteConfirmView.as_view(), name='siteuser-invite-confirm'),
+
 
 
 ]

@@ -2,6 +2,12 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from .models import Hospital, Schedule, Accommodation, Patient, StaffAdminUser, SiteUser
 from datetime import datetime, timedelta
+from .utils import send_invite_email  # Import the invite email function
+
+@admin.action(description="Send invite email")
+def send_invite(modeladmin, request, queryset):
+    for user in queryset:
+        send_invite_email(user.email)
 
 # Managing site users
 @admin.register(SiteUser)
@@ -9,6 +15,15 @@ class SiteUserAdmin(admin.ModelAdmin):
     list_display = ('email', 'is_active', 'is_frontdesk', 'date_joined')
     list_filter = ('is_active', 'is_frontdesk', 'date_joined')
     search_fields = ('email',)
+    actions = [send_invite] 
+
+    # Fully disable password fields:
+    exclude = ('password',)
+
+    # Optional: make sure is_active defaults to False when creating
+    def get_changeform_initial_data(self, request):
+        return {'is_active': False}
+
 
 # Customizing the Hospital admin
 class HospitalAdmin(admin.ModelAdmin):
