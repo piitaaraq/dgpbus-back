@@ -1,40 +1,32 @@
 from django.core import signing
 from django.core.mail import send_mail
-from django.urls import reverse
 from django.conf import settings
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.utils import timezone
 from django.utils.http import int_to_base36, base36_to_int
 
+# ------------------------
+# Password Reset Tokens
+# ------------------------
 
-# Custom token generator for SiteUser
 class SiteUserPasswordResetTokenGenerator(PasswordResetTokenGenerator):
     def _make_hash_value(self, user, timestamp):
-        """
-        This is Django's default hash generation.
-        """
         return f"{user.pk}{user.is_active}{timestamp}"
 
     def check_token(self, user, token):
-        """
-        Extend Django's token check to enforce PASSWORD_RESET_TIMEOUT.
-        """
         if not (user and token):
             return False
 
-        # Perform default Django validation first
         result = super().check_token(user, token)
         if not result:
             return False
 
-        # Extract timestamp from token
         try:
             ts_b36, _ = token.split("-")
             ts = base36_to_int(ts_b36)
         except Exception:
             return False
 
-        # Calculate time delta, making sure we're using naive UTC datetime
         naive_now = timezone.now().replace(tzinfo=None)
         now_ts = self._num_seconds(naive_now)
 
@@ -45,12 +37,9 @@ class SiteUserPasswordResetTokenGenerator(PasswordResetTokenGenerator):
 
         return True
 
-
-# Create instance for re-use
 site_user_password_reset_token = SiteUserPasswordResetTokenGenerator()
 
 
-# Generate signed data for email link
 def generate_signed_reset_data(user):
     token = site_user_password_reset_token.make_token(user)
     data = {'email': user.email, 'token': token}
@@ -58,7 +47,6 @@ def generate_signed_reset_data(user):
     return signed_data
 
 
-# Verify signed data when link is opened
 def verify_signed_reset_data(signed_data):
     try:
         data = signing.loads(signed_data)
@@ -67,7 +55,6 @@ def verify_signed_reset_data(signed_data):
         return None, None
 
 
-# Send password reset email using Mailgun via Django's EmailBackend
 def send_password_reset_email(user):
     signed_data = generate_signed_reset_data(user)
     reset_link = f"{settings.FRONTEND_RESET_URL}?signed={signed_data}"
@@ -96,26 +83,27 @@ def send_password_reset_email(user):
         recipient_list=[user.email],
     )
 
+# ------------------------
+# Invite Tokens
+# ------------------------
 
-# For testing imports in Django shell (optional)
-def test_import():
-    print("UTILS IMPORT WORKS")
+INVITE_TOKEN_SALT = "siteuser.invite.token"
 
-# Generate signed invite data
 def generate_signed_invite_data(email):
-    data = {'email': email}
-    signed_data = signing.dumps(data)
-    return signed_data
+    signer = signing.TimestampSigner(salt=INVITE_TOKEN_SALT)
+    signed_value = signer.sign(email)
+    return signed_value
 
-# Verify signed invite data
 def verify_signed_invite_data(signed_data):
+    signer = signing.TimestampSigner(salt=INVITE_TOKEN_SALT)
     try:
-        data = signing.loads(signed_data)
-        return data['email']
+        email = signer.unsign(signed_data, max_age=settings.INVITE_TOKEN_EXPIRY)
+        return email
+    except signing.SignatureExpired:
+        return None
     except signing.BadSignature:
         return None
 
-# Send invite email using Mailgun via Django's EmailBackend
 def send_invite_email(email):
     signed_data = generate_signed_invite_data(email)
     invite_link = f"{settings.FRONTEND_INVITE_URL}?signed={signed_data}"
@@ -141,3 +129,4 @@ def send_invite_email(email):
         from_email="noreply@bus.patienthjem.dk",
         recipient_list=[email],
     )
+
