@@ -117,26 +117,38 @@ class SiteUserInviteConfirmSerializer(serializers.Serializer):
 
     def validate(self, data):
         from .utils import verify_signed_invite_data
+        import unicodedata
 
         signed_data = data.get("signed")
+
+        # Defensive normalization
+        signed_data = signed_data.strip()
+        signed_data = unicodedata.normalize("NFC", signed_data)
+
+        print(f"[DEBUG] Serializer received signed data: '{signed_data}'")
+
         email = verify_signed_invite_data(signed_data)
         if not email:
             raise serializers.ValidationError("Ugyldigt eller udløbet link.")
 
-        # Ensure user does not already exist (paranoia check)
-        if SiteUser.objects.filter(email=email).exists():
-            raise serializers.ValidationError("Denne bruger findes allerede.")
-
         data['email'] = email
         return data
 
-    def create(self, validated_data):
-        email = validated_data['email']
-        password = validated_data['password']
-        user = SiteUser.objects.create_user(email=email, password=password)
+    def save(self):
+        from .models import SiteUser
+
+        email = self.validated_data['email']
+        password = self.validated_data['password']
+
+        try:
+            user = SiteUser.objects.get(email=email)
+        except SiteUser.DoesNotExist:
+            raise serializers.ValidationError("Inviteret bruger findes ikke.")
+
+        user.set_password(password)
         user.is_active = True
         user.save()
-        return user
+
 
 class SiteUserPasswordResetRequestSerializer(serializers.Serializer):
     email = serializers.EmailField()

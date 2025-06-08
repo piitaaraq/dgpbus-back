@@ -47,8 +47,8 @@ urlpatterns = [
     path('api/siteusers/password-reset-validate/', SiteUserPasswordResetValidateView.as_view(), name='siteuser_password_reset_validate'),
 
     # User invite endpoints
-    path('siteuser/invite/', SiteUserInviteView.as_view(), name='siteuser-invite'),
-    path('siteuser/invite/confirm/', SiteUserInviteConfirmView.as_view(), name='siteuser-invite-confirm'),
+    path('api/siteusers/invite/', SiteUserInviteView.as_view(), name='siteuser-invite'),
+    path('api/siteusers/invite-confirm/', SiteUserInviteConfirmView.as_view(), name='siteuser-invite-confirm'),
 
 
 

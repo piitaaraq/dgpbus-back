@@ -2,6 +2,9 @@ from pathlib import Path
 from datetime import timedelta
 from decouple import config, Csv
 import os
+from dotenv import load_dotenv
+load_dotenv()  # only if you're not already loading dotenv
+
 
 # BASE_DIR is the directory that holds the project
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -93,14 +96,18 @@ AUTHENTICATION_BACKENDS = [
     'dgp_bus.backends.SiteUserBackend',  # Custom backend for site users
 ]
 
-INVITE_TOKEN_EXPIRY = 24 * 60 * 60  
-FRONTEND_INVITE_URL = "https://bus.patienthjem.dk/register-invite"
+BASE_URL = os.getenv("BASE_URL", "https://bus.patienthjem.dk")
+INVITE_TOKEN_EXPIRY = 24 * 60 * 60
+FRONTEND_INVITE_URL = f"{BASE_URL}/register-invite"
+FRONTEND_RESET_URL = f"{BASE_URL}/reset-password"
+
+#FRONTEND_INVITE_URL = "https://bus.patienthjem.dk/register-invite"
 
 # Token expiration: 24 hours
 PASSWORD_RESET_TIMEOUT = 60 * 60 * 24  # 24 hours 
 
 # Frontend reset URL where the user will land to set new password
-FRONTEND_RESET_URL = 'https://bus.patienthjem.dk/reset-password'
+#FRONTEND_RESET_URL = 'https://bus.patienthjem.dk/reset-password'
 
 
 AUTH_USER_MODEL = 'dgp_bus.StaffAdminUser'

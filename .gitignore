@@ -2,5 +2,6 @@ dgp_bus/__pycache__/
 dgp_bus_project/__pycache__/
 venv/
 .env
+env.bak
 todo.md
 

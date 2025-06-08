@@ -48,6 +48,7 @@ def generate_signed_reset_data(user):
     return signed_data
 
 
+
 def verify_signed_reset_data(signed_data):
     try:
         data = signing.loads(signed_data)
@@ -97,13 +98,29 @@ def generate_signed_invite_data(email):
 
 def verify_signed_invite_data(signed_data):
     signer = signing.TimestampSigner(salt=INVITE_TOKEN_SALT)
+    print(f"[DEBUG] Verifying invite token: '{signed_data}'")
+    print(f"[DEBUG] Using salt: '{INVITE_TOKEN_SALT}'")
+    print(f"[DEBUG] Using INVITE_TOKEN_EXPIRY: '{settings.INVITE_TOKEN_EXPIRY}'")
     try:
         email = signer.unsign(signed_data, max_age=settings.INVITE_TOKEN_EXPIRY)
+        print(f"[DEBUG] Invite token valid for email: '{email}'")
         return email
     except signing.SignatureExpired:
+        print("[DEBUG] Invite token expired")
         return None
-    except signing.BadSignature:
+    except signing.BadSignature as e:
+        print(f"[DEBUG] BadSignature: '{str(e)}'")
         return None
+
+#def verify_signed_invite_data(signed_data):
+#    signer = signing.TimestampSigner(salt=INVITE_TOKEN_SALT)
+#    try:
+#        email = signer.unsign(signed_data, max_age=settings.INVITE_TOKEN_EXPIRY)
+#        return email
+#    except signing.SignatureExpired:
+#        return None
+#    except signing.BadSignature:
+#        return None
 
 def send_invite_email(email):
     signed_data = generate_signed_invite_data(email)
@@ -130,4 +147,3 @@ def send_invite_email(email):
         from_email="noreply@bus.patienthjem.dk",
         recipient_list=[email],
     )
-
