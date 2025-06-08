@@ -4,6 +4,7 @@ from django.conf import settings
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.utils import timezone
 from django.utils.http import int_to_base36, base36_to_int
+from urllib.parse import urlencode
 
 # ------------------------
 # Password Reset Tokens
