@@ -106,7 +106,7 @@ def verify_signed_invite_data(signed_data):
 
 def send_invite_email(email):
     signed_data = generate_signed_invite_data(email)
-    invite_link = f"{settings.FRONTEND_INVITE_URL}?signed={signed_data}"
+    invite_link = f"{settings.FRONTEND_INVITE_URL}?{urlencode({'signed': signed_data})}"
     subject = "Invitation til at oprette konto på bus.patienthjem.dk"
     message = f"""
     Hej,
