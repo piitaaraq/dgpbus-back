@@ -4,4 +4,6 @@ venv/
 .env
 env.bak
 todo.md
+__pycache__/
+*.pyc
 
