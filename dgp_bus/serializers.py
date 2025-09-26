@@ -1,9 +1,8 @@
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from .models import Hospital, Schedule, Patient, StaffAdminUser, Accommodation, SiteUser
+from .models import Hospital, Schedule, Patient, Appointment, StaffAdminUser, Accommodation, SiteUser
 from datetime import datetime, timedelta
 import locale
-import bleach
 from .utils import site_user_password_reset_token
 
 class HospitalSerializer(serializers.ModelSerializer):
@@ -189,99 +188,158 @@ class SiteUserPasswordResetConfirmSerializer(serializers.Serializer):
 
 
 class PatientSerializer(serializers.ModelSerializer):
-    needs_translator = serializers.BooleanField(write_only=True)
-    translator = serializers.BooleanField(read_only=True)
-    description = serializers.CharField(required=False, allow_blank=True, max_length=255)
-    hospital_name = serializers.CharField(source='hospital.hospital_name', read_only=True)
-    has_taxi = serializers.BooleanField(default=False)
-    day_of_birth = serializers.DateField(required=False, allow_null=True)
-
-    # Use the AccommodationSerializer to serialize the accommodation foreign key
-    accommodation = AccommodationSerializer(read_only=True)
-    accommodation_id = serializers.PrimaryKeyRelatedField(
-        queryset=Accommodation.objects.all(), source='accommodation', write_only=True
-    )
-
     class Meta:
         model = Patient
         fields = '__all__'
-        extra_fields = ['hospital_name', 'accommodation', 'accommodation_id']
-
-    # Sanitize the description field to prevent XSS attacks
-    def sanitize_description(self, description):
-        return bleach.clean(description, tags=[], attributes={}, strip=True)
-
-    def calculate_bus_time(self, patient):
-        # Set locale to Danish
-        locale.setlocale(locale.LC_TIME, 'da_DK.UTF-8')
-        
-        accommodation = patient.get('accommodation')
-        hospital = patient.get('hospital')
-        
-        print(f"Accommodation: {accommodation.name}, Hospital ID: {hospital.id}")
-        
-        # Only calculate bus_time for hospitals with IDs 1, 3, and 7
-        if hospital.id in [1, 3, 7] and accommodation.name == 'Det grønlandske Patienthjem':
-            appointment_date = patient.get('appointment_date')
-            appointment_time = patient.get('appointment_time')
-            
-            # Get the day of the week
-            day_of_week = appointment_date.strftime('%A')
-    
-            # Use the schedule for hospital 1 for hospitals 3 and 7
-            schedule_hospital_id = 1 if hospital.id in [3, 7] else hospital.id
-    
-            # Fetch schedules using the adjusted hospital ID
-            schedules = Schedule.objects.filter(destination_id=schedule_hospital_id, day_of_week=day_of_week)
-            
-            suitable_schedule = None
-            for schedule in schedules:
-                travel_time = timedelta(minutes=30)
-                latest_departure = (datetime.combine(appointment_date, appointment_time) - travel_time).time()
-                
-                # Find the latest schedule before the latest_departure time
-                if schedule.departure_time <= latest_departure:
-                    if suitable_schedule is None or schedule.departure_time > suitable_schedule.departure_time:
-                        suitable_schedule = schedule
-            
-            # Return the departure_time of the suitable schedule
-            return suitable_schedule.departure_time if suitable_schedule else None
-        else:
-            return None
-
-    def create(self, validated_data):
-        if 'description' in validated_data:
-            validated_data['description'] = self.sanitize_description(validated_data['description'])
-
-        needs_translator = validated_data.pop('needs_translator', False)
-        validated_data['bus_time'] = self.calculate_bus_time(validated_data)
-        patient = super().create(validated_data)
-
-        patient.translator = needs_translator
-        patient.save()
-
-        return patient
-
-    def update(self, instance, validated_data):
-        if 'description' in validated_data:
-            validated_data['description'] = self.sanitize_description(validated_data['description'])
-
-        validated_data['bus_time'] = self.calculate_bus_time(validated_data)
-        patient = super().update(instance, validated_data)
-
-        return patient
 
 
-    
+class AppointmentSerializer(serializers.ModelSerializer):
+    # Write via IDs
+    patient_id = serializers.PrimaryKeyRelatedField(
+        queryset=Patient.objects.all(), source='patient', write_only=True
+    )
+    hospital_id = serializers.PrimaryKeyRelatedField(
+        queryset=Hospital.objects.all(), source='hospital', write_only=True
+    )
+    accommodation_id = serializers.PrimaryKeyRelatedField(
+        queryset=Accommodation.objects.all(), source='accommodation',
+        write_only=True, required=False, allow_null=True
+    )
 
-class PatientPublicSerializer(serializers.ModelSerializer):
+    # Read-only display helpers
+    patient_name = serializers.CharField(source='patient.name', read_only=True)
     hospital_name = serializers.CharField(source='hospital.hospital_name', read_only=True)
+    accommodation_name = serializers.SerializerMethodField(read_only=True)
+    bus_time_effective = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
-        model = Patient
-        exclude = ['description', 'day_of_birth', 'last_name',]   
-        extra_fields = ['hospital_name']
+        model = Appointment
+        fields = '__all__'
 
+    # ---------- display helpers ----------
+    def get_accommodation_name(self, obj):
+        return obj.accommodation.name if obj.accommodation else None
+
+    def get_bus_time_effective(self, obj):
+        return obj.bus_time_manual or obj.bus_time_computed
+
+    # ---------- bus-time core ----------
+    @staticmethod
+    def _compute_bus_time(*, hospital, accommodation, appointment_date, appointment_time):
+        if not (hospital and accommodation and appointment_date and appointment_time):
+            return None
+
+        # Locale can be missing on server; don't crash if it is
+        try:
+            locale.setlocale(locale.LC_TIME, 'da_DK.UTF-8')
+        except Exception:
+            pass
+
+        # Your business rule
+        if hospital.id in [1, 3, 7] and getattr(accommodation, 'name', '') == 'Det grønlandske Patienthjem':
+            day_of_week = appointment_date.strftime('%A')
+            schedule_hospital_id = 1 if hospital.id in [3, 7] else hospital.id
+
+            schedules = Schedule.objects.filter(
+                destination_id=schedule_hospital_id,
+                day_of_week=day_of_week
+            )
+
+            travel_time = timedelta(minutes=30)
+            latest_departure = (datetime.combine(appointment_date, appointment_time) - travel_time).time()
+
+            chosen = None
+            for s in schedules:
+                if s.departure_time <= latest_departure and (chosen is None or s.departure_time > chosen.departure_time):
+                    chosen = s
+            return chosen.departure_time if chosen else None
+
+        return None
+
+    def _resolve_inputs(self, instance, v):
+        """
+        Resolve inputs from incoming validated data (v) or fall back to instance fields.
+        """
+        hospital = v.get('hospital') or getattr(instance, 'hospital', None)
+        accommodation = v.get('accommodation') or getattr(instance, 'accommodation', None)
+        d = v.get('appointment_date') or getattr(instance, 'appointment_date', None)
+        t = v.get('appointment_time') or getattr(instance, 'appointment_time', None)
+        return hospital, accommodation, d, t
+
+    # ---------- lifecycle ----------
+    def create(self, validated_data):
+        # If the client didn’t set a manual bus time, compute one
+        if not validated_data.get('bus_time_manual'):
+            hospital, accommodation, d, t = self._resolve_inputs(None, validated_data)
+            bt = self._compute_bus_time(hospital=hospital, accommodation=accommodation,
+                                        appointment_date=d, appointment_time=t)
+            if bt is not None:
+                validated_data['bus_time_computed'] = bt
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        manual_provided = 'bus_time_manual' in validated_data and validated_data.get('bus_time_manual') not in (None, '')
+        manual_cleared  = 'bus_time_manual' in validated_data and validated_data.get('bus_time_manual') in (None, '')
+
+        if manual_provided:
+            # Respect manual override; do not touch computed here
+            return super().update(instance, validated_data)
+
+        # Either manual was cleared or inputs may have changed — recompute
+        hospital, accommodation, d, t = self._resolve_inputs(instance, validated_data)
+        bt = self._compute_bus_time(hospital=hospital, accommodation=accommodation,
+                                    appointment_date=d, appointment_time=t)
+
+        if manual_cleared:
+            validated_data['bus_time_manual'] = None  # explicit clear back to computed
+
+        if bt is not None:
+            validated_data['bus_time_computed'] = bt
+
+        return super().update(instance, validated_data)
+
+
+class BusTimeInputSerializer(serializers.Serializer):
+    hospital_id = serializers.PrimaryKeyRelatedField(
+        queryset=Hospital.objects.all(), source='hospital'
+    )
+    accommodation_id = serializers.PrimaryKeyRelatedField(
+        queryset=Accommodation.objects.all(), source='accommodation'
+    )
+    appointment_date = serializers.DateField()
+    appointment_time = serializers.TimeField()
+
+class AppointmentPublicSerializer(serializers.ModelSerializer):
+    patient_name = serializers.CharField(source='patient.name', read_only=True)
+    hospital_name = serializers.CharField(source='hospital.hospital_name', read_only=True)
+    accommodation_name = serializers.SerializerMethodField(read_only=True)
+    bus_time_effective = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = Appointment
+        # expose only what you’re comfortable showing publicly
+        fields = [
+            'id',
+            'patient_name', 'hospital_name', 'accommodation_name',
+            'appointment_date', 'appointment_time', 'bus_time_effective',
+            'has_taxi',  # include/remove as needed
+        ]
+
+    def get_accommodation_name(self, obj):
+        return obj.accommodation.name if obj.accommodation else None
+
+    def get_bus_time_effective(self, obj):
+        return obj.bus_time_manual or obj.bus_time_computed
+    
+class BusTimeInputSerializer(serializers.Serializer):
+    hospital_id = serializers.PrimaryKeyRelatedField(
+        queryset=Hospital.objects.all(), source='hospital'
+    )
+    accommodation_id = serializers.PrimaryKeyRelatedField(
+        queryset=Accommodation.objects.all(), source='accommodation'
+    )
+    appointment_date = serializers.DateField()
+    appointment_time = serializers.TimeField()
 
 
 

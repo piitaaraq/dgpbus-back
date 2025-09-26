@@ -6,6 +6,7 @@ from .views import (
     ScheduleViewSet,
     get_today_rides, 
     PatientViewSet,
+    AppointmentViewSet,
     SiteUserRegisterView,
     SiteUserPasswordResetRequestView,  
     SiteUserPasswordResetConfirmView,  
@@ -23,7 +24,8 @@ router = DefaultRouter()
 router.register(r'hospitals', HospitalViewSet)
 router.register(r'accommodations', AccommodationViewSet)
 router.register(r'schedules', ScheduleViewSet)
-router.register(r'patients', PatientViewSet)  #
+router.register(r'patients', PatientViewSet)
+router.register(r'appointments', AppointmentViewSet) 
 
 # URL patterns
 urlpatterns = [

@@ -117,32 +117,59 @@ class Accommodation(models.Model):
     def __str__(self):
         return self.name
 
-
-
-# Patient model (Now Includes Ride Data)
 class Patient(models.Model):
+    # personal-only
     name = models.CharField(max_length=255)
     last_name = models.CharField(max_length=255)
-    day_of_birth = models.DateField()
-    room = models.CharField(max_length=100)
-    appointment_time = models.TimeField()
-    appointment_date = models.DateField()
-    bus_time = models.TimeField(null=True, blank=True)  # Used instead of Ride.departure_time
-    departure_location = models.CharField(max_length=255, blank=True, null=True)  # New field from Ride
-    status = models.BooleanField(default=False)  # Replacing Ride status
+    day_of_birth = models.DateField(null=True, blank=True)
     phone_no = models.CharField(max_length=15, blank=True, null=True)
-    translator = models.BooleanField(default=False)
-    hospital = models.ForeignKey(Hospital, on_delete=models.CASCADE)
-    department = models.CharField(max_length=255, null=True, blank=True)
-    description = models.CharField(max_length=255, blank=True)
-    has_taxi = models.BooleanField(default=False)
-    accommodation = models.ForeignKey(Accommodation, on_delete=models.SET_NULL, null=True)
+    room = models.CharField(max_length=100, blank=True, null=True)  # keep here if room is person-scoped
+    # optional: default accommodation used when appointment.accommodation is null
+    default_accommodation = models.ForeignKey(
+        'Accommodation', on_delete=models.SET_NULL, null=True, blank=True, related_name='default_for_patients'
+    )
     created_at = models.DateTimeField(auto_now_add=True)
-    
-    # New ride-related fields
+
+    class Meta:
+        indexes = [models.Index(fields=['name', 'last_name'])]
+
+    def __str__(self):
+        return f'{self.name} {self.last_name}'.strip()
+
+
+class Appointment(models.Model):
+    patient = models.ForeignKey('Patient', on_delete=models.CASCADE, related_name='appointments')
+    hospital = models.ForeignKey('Hospital', on_delete=models.PROTECT)
+    accommodation = models.ForeignKey('Accommodation', on_delete=models.PROTECT, null=True, blank=True)
+
+    appointment_date = models.DateField()
+    appointment_time = models.TimeField()
+
+    # bus time (manual override vs computed)
+    bus_time_manual = models.TimeField(null=True, blank=True)
+    bus_time_computed = models.TimeField(null=True, blank=True)
+
+    # appointment-scoped flags
+    status = models.BooleanField(default=False)
+    translator = models.BooleanField(default=False)
+    has_taxi = models.BooleanField(default=False)
     wheelchair = models.BooleanField(default=False)
     trolley = models.BooleanField(default=False)
     companion = models.BooleanField(default=False)
 
-    def __str__(self):
-        return f'{self.name} - Room {self.room} - {self.hospital.hospital_name}'
+    department = models.CharField(max_length=255, null=True, blank=True)
+    description = models.CharField(max_length=255, blank=True)
+    departure_location = models.CharField(max_length=255, blank=True, null=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['appointment_date']),
+            models.Index(fields=['appointment_date', 'appointment_time']),
+        ]
+
+    @property
+    def bus_time_effective(self):
+        return self.bus_time_manual or self.bus_time_computed
+
