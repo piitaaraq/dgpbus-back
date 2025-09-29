@@ -52,8 +52,8 @@ This project is tailored for the **Greenlandic Patient Home system** and is loca
 ### 1. Clone the repo
 
 ```bash
-git clone https://your-repo-url.git
-cd dgp_bus_project
+git clone git@github.com:piitaaraq/dgpbus-back.git
+cd dgpbus-back
 ```
 
 ### 2. Create and activate a virtual environment
