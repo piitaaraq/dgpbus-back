@@ -5,6 +5,9 @@ from datetime import datetime, timedelta
 import locale
 from .utils import site_user_password_reset_token
 
+
+
+
 class HospitalSerializer(serializers.ModelSerializer):
     class Meta:
         model = Hospital
@@ -194,7 +197,7 @@ class PatientSerializer(serializers.ModelSerializer):
 
 
 class AppointmentSerializer(serializers.ModelSerializer):
-    # Write via IDs
+    # ---------- write via IDs ----------
     patient_id = serializers.PrimaryKeyRelatedField(
         queryset=Patient.objects.all(), source='patient', write_only=True
     )
@@ -206,15 +209,27 @@ class AppointmentSerializer(serializers.ModelSerializer):
         write_only=True, required=False, allow_null=True
     )
 
-    # Read-only display helpers
+    # ---------- read-only display helpers ----------
     patient_name = serializers.CharField(source='patient.name', read_only=True)
+    patient_last_name = serializers.CharField(source='patient.last_name', read_only=True)
+    patient_room = serializers.CharField(source='patient.room', read_only=True)
     hospital_name = serializers.CharField(source='hospital.hospital_name', read_only=True)
     accommodation_name = serializers.SerializerMethodField(read_only=True)
     bus_time_effective = serializers.SerializerMethodField(read_only=True)
+    patient_phone = serializers.CharField(source='patient.phone_no', read_only=True, allow_blank=True, allow_null=True)  
+    patient_dob = serializers.DateField(source='patient.day_of_birth', read_only=True)
+    patient_translator = serializers.BooleanField(source='patient.translator', read_only=True)
 
     class Meta:
         model = Appointment
         fields = '__all__'
+        read_only_fields = ('has_taxi', 'status', 'bus_time_computed', 'created_at')
+        extra_kwargs = {
+            # 👇 important: prevent DRF from requiring model FKs on input
+            'patient': {'read_only': True},
+            'hospital': {'read_only': True},
+            'accommodation': {'read_only': True},
+        }
 
     # ---------- display helpers ----------
     def get_accommodation_name(self, obj):
@@ -235,10 +250,10 @@ class AppointmentSerializer(serializers.ModelSerializer):
         except Exception:
             pass
 
-        # Your business rule
-        if hospital.id in [1, 3, 7] and getattr(accommodation, 'name', '') == 'Det grønlandske Patienthjem':
+        # Business rule
+        if hospital.id in [1, 3, 7, 10] and getattr(accommodation, 'name', '') == 'Det grønlandske Patienthjem':
             day_of_week = appointment_date.strftime('%A')
-            schedule_hospital_id = 1 if hospital.id in [3, 7] else hospital.id
+            schedule_hospital_id = 1 if hospital.id in [3, 7, 10] else hospital.id
 
             schedules = Schedule.objects.filter(
                 destination_id=schedule_hospital_id,
@@ -279,7 +294,7 @@ class AppointmentSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         manual_provided = 'bus_time_manual' in validated_data and validated_data.get('bus_time_manual') not in (None, '')
-        manual_cleared  = 'bus_time_manual' in validated_data and validated_data.get('bus_time_manual') in (None, '')
+        manual_cleared = 'bus_time_manual' in validated_data and validated_data.get('bus_time_manual') in (None, '')
 
         if manual_provided:
             # Respect manual override; do not touch computed here
@@ -299,6 +314,7 @@ class AppointmentSerializer(serializers.ModelSerializer):
         return super().update(instance, validated_data)
 
 
+
 class BusTimeInputSerializer(serializers.Serializer):
     hospital_id = serializers.PrimaryKeyRelatedField(
         queryset=Hospital.objects.all(), source='hospital'
@@ -311,8 +327,12 @@ class BusTimeInputSerializer(serializers.Serializer):
 
 class AppointmentPublicSerializer(serializers.ModelSerializer):
     patient_name = serializers.CharField(source='patient.name', read_only=True)
+    patient_room = serializers.CharField(source='patient.room', read_only=True)
     hospital_name = serializers.CharField(source='hospital.hospital_name', read_only=True)
     accommodation_name = serializers.SerializerMethodField(read_only=True)
+    bus_time_effective = serializers.SerializerMethodField(read_only=True)
+
+    # effective bus time as a string (client-friendly)
     bus_time_effective = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
@@ -329,7 +349,8 @@ class AppointmentPublicSerializer(serializers.ModelSerializer):
         return obj.accommodation.name if obj.accommodation else None
 
     def get_bus_time_effective(self, obj):
-        return obj.bus_time_manual or obj.bus_time_computed
+        t = obj.bus_time_manual or obj.bus_time_computed
+        return t.strftime('%H:%M:%S') if t else None
     
 class BusTimeInputSerializer(serializers.Serializer):
     hospital_id = serializers.PrimaryKeyRelatedField(
